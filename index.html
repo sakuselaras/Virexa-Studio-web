@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virexa Studio - Portal Kreator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (Untuk kompilasi JSX di browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #050000; }
+        ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
+        body { background-color: #050000; color: #f3f4f6; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ==========================================
+        // KONFIGURASI SUPABASE & API GEMINI
+        // ==========================================
+        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // MASUKKAN API KEY GEMINI ANDA DI BAWAH INI (Dapatkan dari aistudio.google.com)
+        const apiKey = "MASUKKAN_API_KEY_GEMINI_ANDA_DISINI"; 
+
+        // --- HELPER FUNCTIONS ---
+        const fetchWithRetry = async (url, options, retries = 2) => {
+            const delays = [1000, 2000, 4000];
+            for (let i = 0; i <= retries; i++) {
+                if (options.signal && options.signal.aborted) throw new Error("Proses dihentikan pengguna");
+
+                const timeoutController = new AbortController();
+                const timeoutId = setTimeout(() => timeoutController.abort(), 15000); 
+
+                const abortHandler = () => timeoutController.abort();
+                if (options.signal) options.signal.addEventListener('abort', abortHandler);
+
+                try {
+                    const response = await fetch(url, { ...options, signal: timeoutController.signal });
+                    clearTimeout(timeoutId);
+                    if (options.signal) options.signal.removeEventListener('abort', abortHandler);
+                    
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        console.error("API Error Response:", errText); 
+                        const err = new Error(`HTTP error! status: ${response.status}`);
+                        if (response.status === 401 || response.status === 403) err.isAuthError = true;
+                        if (response.status === 400) err.message = `HTTP 400 Bad Request: Cek API Key Anda.`;
+                        throw err;
+                    }
+                    return await response.json();
+                } catch (error) {
+                    clearTimeout(timeoutId);
+                    if (options.signal) options.signal.removeEventListener('abort', abortHandler);
+                    if (error.isAuthError) throw error; 
+                    if (options.signal && options.signal.aborted) throw new Error("Proses dihentikan pengguna");
+                    if (i === retries) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i] || 1000));
+                }
+            }
+        };
+
+        const fileToBase64 = (file) => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+
+        const extractFrameFromVideo = (file) => {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.playsInline = true;
+                video.muted = true;
+                video.src = URL.createObjectURL(file);
+                video.onloadeddata = () => { video.currentTime = Math.min(1, video.duration / 2); };
+                video.onseeked = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+                    URL.revokeObjectURL(video.src);
+                };
+                video.onerror = () => reject(new Error("Gagal memuat video"));
+            });
+        };
+
+        const generateThumbnail = (base64Str, maxWidth = 800, quality = 0.85) => {
+            return new Promise((resolve) => {
+                const img = new window.Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let ratio = 1;
+                    if (img.width > maxWidth) { ratio = maxWidth / img.width; }
+                    canvas.width = img.width * ratio;
+                    canvas.height = img.height * ratio;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = () => resolve(null);
+                img.src = base64Str.startsWith('data:') ? base64Str : `data:image/jpeg;base64,${base64Str}`;
+            });
+        };
+
+        const copyToClipboard = async (text) => {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (err) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                return successful;
+            }
+        };
+
+        // --- API SERVICES ---
+        const AI = {
+            analyzeImage: async (base64Image, prompt, signal) => {
+                const payload = {
+                    contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Image } }] }]
+                };
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal
+                });
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            },
+
+            editImage: async (base64Images, prompt, ratio = "1:1", signal) => {
+                const base64Inputs = Array.isArray(base64Images) ? base64Images : [base64Images];
+                const imageParts = base64Inputs.map(base64 => ({
+                    inlineData: { mimeType: "image/jpeg", data: base64 }
+                }));
+                
+                const dimText = ratio === "16:9" ? "16:9 WIDESCREEN" : ratio === "9:16" ? "9:16 VERTICAL PORTRAIT" : "1:1 SQUARE";
+                
+                const finalPrompt = `[CRITICAL MANDATE: EXACT ${dimText} ASPECT RATIO REQUIRED]\n${prompt}`;
+
+                const payload = {
+                    contents: [{ role: "user", parts: [ { text: finalPrompt }, ...imageParts ] }],
+                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } 
+                };
+                
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal
+                });
+
+                if (data.error) throw new Error(data.error.message || "API Error Response");
+
+                const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                if (!base64) throw new Error("Gagal merender gambar (respons kosong)");
+                
+                return `data:image/jpeg;base64,${base64}`;
+            },
+            
+            generateImage: async (prompt, ratio = "1:1", signal) => {
+                const payload = { instances: { prompt }, parameters: { sampleCount: 1, aspectRatio: ratio } };
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal
+                });
+                return `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
+            }
+        };
+
+        const Toast = ({ message, type, onClose }) => {
+            useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
+            const bg = type === 'error' ? 'bg-[#3a0404] border-red-500 text-white' : 
+                       type === 'info' ? 'bg-[#3b2c00] border-orange-500 text-white' : 'bg-[#0a2a10] border-white/50 text-white';
+            const iconClass = type === 'error' || type === 'info' ? 'ph-warning-circle' : 'ph-check-circle';
+            return (
+                <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg border backdrop-blur-md shadow-lg z-50 animate-in slide-in-from-bottom-5 ${bg}`}>
+                    <i className={`ph-fill ${iconClass} text-xl`}></i>
+                    <p className="font-medium text-sm">{message}</p>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // KOMPONEN UTAMA (APP)
+        // ==========================================
+        function App() {
+            const [uiUser, setUiUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('home');
+            const [toast, setToast] = useState(null);
+            const [history, setHistory] = useState([]);
+            const [isInitializing, setIsInitializing] = useState(true);
+            const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+
+            useEffect(() => {
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    setUiUser(session?.user ?? null);
+                    setIsInitializing(false);
+                });
+
+                supabase.auth.onAuthStateChange((_event, session) => {
+                    setUiUser(session?.user ?? null);
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!uiUser) {
+                    setHistory([]);
+                    return;
+                }
+                const fetchHistory = async () => {
+                    try {
+                        const { data, error } = await supabase.from('history').select('*').eq('user_id', uiUser.id).order('created_at', { ascending: false });
+                        if (!error && data) setHistory(data);
+                    } catch (err) {
+                        console.warn("Gagal memuat riwayat", err);
+                    }
+                };
+                fetchHistory();
+            }, [uiUser]);
+
+            const showToast = (message, type = 'success') => setToast({ message, type });
+
+            const saveToHistory = async (type, payload) => {
+                if (!uiUser) return;
+                let safePayload = { ...payload };
+                try {
+                    if (safePayload.url && safePayload.url.startsWith('data:image') && safePayload.url.length > 500000) {
+                        const thumbnail = await generateThumbnail(safePayload.url, 400); 
+                        if (thumbnail) {
+                            safePayload.url = thumbnail;
+                            safePayload.isThumbnail = true; 
+                        }
+                    }
+
+                    const { prompt, url, style, ratio, mode, ...metadata } = safePayload;
+
+                    const { data, error } = await supabase.from('history').insert([{
+                        user_id: uiUser.id,
+                        type: type,
+                        prompt: prompt || null,
+                        url: url || null,
+                        style: style || null,
+                        ratio: ratio || null,
+                        metadata: metadata
+                    }]).select();
+
+                    if (data && data[0]) {
+                        setHistory(prev => [data[0], ...prev]);
+                        
+                        // POTONG POIN USER (-1 Poin per Render)
+                        const { data: userData } = await supabase.from('users_public').select('points, total_gen').eq('id', uiUser.id).single();
+                        if (userData) {
+                            await supabase.from('users_public').update({ 
+                                points: userData.points - 1,
+                                total_gen: userData.total_gen + 1
+                            }).eq('id', uiUser.id);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Gagal menyimpan ke database:", e);
+                }
+            };
+
+            const handleLogout = async () => {
+                await supabase.auth.signOut();
+                setUiUser(null);
+                setHistory([]);
+                showToast("Berhasil logout");
+            };
+
+            if (isInitializing) {
+                return (
+                    <div className="min-h-screen bg-[#050000] flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-4 text-white">
+                            <i className="ph ph-spinner-gap text-5xl animate-spin text-red-500"></i>
+                            <p className="font-medium tracking-widest uppercase shadow-[0_0_10px_rgba(255,255,255,0.5)]">Memuat Virexa Engine...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!uiUser) {
+                return <AuthScreen showToast={showToast} supabase={supabase} />;
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0000] to-[#2a0404] text-gray-100 flex overflow-hidden w-full">
+                    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+                        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#4a0404] rounded-full blur-[150px] opacity-30"></div>
+                        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#8a0808] rounded-full blur-[150px] opacity-20"></div>
+                    </div>
+
+                    {!isMobileView && (
+                        <aside className="w-72 bg-black/40 border-r border-white/20 shadow-[2px_0_15px_rgba(255,255,255,0.05)] backdrop-blur-xl flex flex-col p-4 z-20 shrink-0">
+                            <div className="flex items-center gap-3 px-2 mb-10 mt-4">
+                                <i className="ph-fill ph-sparkle text-3xl text-white relative z-10"></i>
+                                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-red-500 tracking-tight drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                                    VIREXA STUDIO
+                                </h1>
+                            </div>
+                            <nav className="flex-1 space-y-3">
+                                <button onClick={() => setActiveTab('home')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'home' ? 'bg-gradient-to-r from-[#4a0404]/80 to-black/80 text-white border border-white/40' : 'text-gray-400 hover:text-white'}`}><i className="ph ph-squares-four text-xl"></i> Beranda</button>
+                                <button onClick={() => setActiveTab('image-gen')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'image-gen' ? 'bg-gradient-to-r from-[#4a0404]/80 to-black/80 text-white border border-white/40' : 'text-gray-400 hover:text-white'}`}><i className="ph ph-image text-xl"></i> Affiliate Studio</button>
+                                <button onClick={() => setActiveTab('prompt-tools')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'prompt-tools' ? 'bg-gradient-to-r from-[#4a0404]/80 to-black/80 text-white border border-white/40' : 'text-gray-400 hover:text-white'}`}><i className="ph-fill ph-lightning text-xl"></i> TikTok Factory</button>
+                                <button onClick={() => setActiveTab('vision')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'vision' ? 'bg-gradient-to-r from-[#4a0404]/80 to-black/80 text-white border border-white/40' : 'text-gray-400 hover:text-white'}`}><i className="ph ph-camera text-xl"></i> Prompt Finder</button>
+                                <button onClick={() => setActiveTab('tiktok-algo')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'tiktok-algo' ? 'bg-gradient-to-r from-[#4a0404]/80 to-black/80 text-white border border-white/40' : 'text-gray-400 hover:text-white'}`}><i className="ph ph-magic-wand text-xl"></i> Prompt Algoritma</button>
+                            </nav>
+                            <div className="mt-auto pt-6 border-t border-white/10">
+                                <button onClick={() => setActiveTab('history')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-white/10 transition-all border border-transparent"><i className="ph ph-clock-counter-clockwise text-xl"></i> <span className="font-medium">Aset Saya</span></button>
+                                <div className="mt-4 px-4 py-3 bg-[#110000] rounded-xl border border-white/20 shadow-[0_0_10px_rgba(255,255,255,0.05)] flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-800 to-black flex items-center justify-center border border-white/40"><i className="ph-fill ph-user text-white text-sm"></i></div>
+                                        <div className="flex-1 overflow-hidden">
+                                            <p className="text-sm font-bold truncate text-white">{uiUser.email?.split('@')[0] || 'User'}</p>
+                                            <p className="text-xs text-red-400 font-medium">Pro Tier</p>
+                                        </div>
+                                    </div>
+                                    <button onClick={handleLogout} className="p-2 bg-red-950/50 hover:bg-red-600 rounded-lg text-white border border-red-900/50 shrink-0"><i className="ph ph-sign-out text-lg"></i></button>
+                                </div>
+                            </div>
+                        </aside>
+                    )}
+
+                    <main className={`flex-1 overflow-y-auto relative scroll-smooth ${isMobileView ? 'p-4 pb-28' : ''}`}>
+                        <div className={!isMobileView ? "relative z-10 p-8 max-w-6xl mx-auto min-h-full" : "relative z-10 w-full h-full"}>
+                            <div className={activeTab === 'home' ? 'block' : 'hidden'}><HomeView setActiveTab={setActiveTab} history={history} /></div>
+                            <div className={activeTab === 'image-gen' ? 'block' : 'hidden'}><ImageGenView showToast={showToast} saveHistory={saveToHistory} /></div>
+                            <div className={activeTab === 'prompt-tools' ? 'block' : 'hidden'}><PromptToolsView showToast={showToast} saveHistory={saveToHistory} /></div>
+                            <div className={activeTab === 'vision' ? 'block' : 'hidden'}><PromptFinderView showToast={showToast} saveHistory={saveToHistory} /></div>
+                            <div className={activeTab === 'tiktok-algo' ? 'block' : 'hidden'}><TiktokAlgoView showToast={showToast} saveHistory={saveToHistory} /></div>
+                            <div className={activeTab === 'history' ? 'block' : 'hidden'}><HistoryView history={history} /></div>
+                        </div>
+                    </main>
+
+                    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // LAYAR AUTENTIKASI
+        // ==========================================
+        function AuthScreen({ showToast, supabase }) {
+            const [isLoading, setIsLoading] = useState(false);
+            const [isLoginMode, setIsLoginMode] = useState(true);
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+
+            const handleEmailAuth = async (e) => {
+                e.preventDefault();
+                if (!email || !password) return showToast("Email dan password wajib diisi", "error");
+                
+                setIsLoading(true);
+                try {
+                    if (isLoginMode) {
+                        const { error } = await supabase.auth.signInWithPassword({ email, password });
+                        if (error) throw error;
+                    } else {
+                        const { error } = await supabase.auth.signUp({ email, password });
+                        if (error) throw error;
+                        showToast("Pendaftaran berhasil! Tunggu sebentar...", "success");
+                    }
+                } catch (error) {
+                    showToast(error.message, "error");
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleGoogleLogin = async () => {
+                setIsLoading(true);
+                try {
+                    const { error } = await supabase.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: { redirectTo: window.location.origin }
+                    });
+                    if (error) throw error;
+                } catch (error) {
+                    showToast("Google OAuth belum dikonfigurasi di Supabase.", "error");
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-[#050000] flex items-center justify-center p-4 relative overflow-hidden font-sans">
+                    <div className="absolute inset-0 pointer-events-none z-0">
+                        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#4a0404] rounded-full blur-[150px] opacity-40"></div>
+                        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#8a0808] rounded-full blur-[150px] opacity-30"></div>
+                    </div>
+                    
+                    <div className="w-full max-w-md bg-black/60 backdrop-blur-xl border border-white/20 shadow-[0_0_30px_rgba(255,0,0,0.15)] rounded-3xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="flex flex-col items-center mb-8">
+                            <div className="relative mb-4">
+                                <div className="absolute inset-0 bg-white blur-lg opacity-30 rounded-full"></div>
+                                <i className="ph-fill ph-sparkle text-5xl text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]"></i>
+                            </div>
+                            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white to-red-500 tracking-tight drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                                VIREXA STUDIO
+                            </h1>
+                            <p className="text-red-200/60 text-xs mt-2 font-bold tracking-widest uppercase">Portal Akses Kreator</p>
+                        </div>
+
+                        <form onSubmit={handleEmailAuth} className="space-y-4 flex flex-col items-center">
+                            <input 
+                                type="email" 
+                                placeholder="Alamat Email" 
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors"
+                                required
+                            />
+                            <input 
+                                type="password" 
+                                placeholder="Kata Sandi" 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500 transition-colors"
+                                required
+                            />
+                            
+                            <button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
+                                {isLoading ? <i className="ph ph-spinner-gap animate-spin text-xl"></i> : isLoginMode ? "Masuk ke Studio" : "Daftar Akun Baru"}
+                            </button>
+
+                            <button type="button" onClick={() => setIsLoginMode(!isLoginMode)} className="text-xs text-gray-400 hover:text-white transition-colors mt-2">
+                                {isLoginMode ? "Belum punya akun? Daftar di sini" : "Sudah punya akun? Masuk di sini"}
+                            </button>
+
+                            <div className="w-full flex items-center gap-3 my-2 opacity-50">
+                                <div className="flex-1 h-px bg-white/20"></div>
+                                <span className="text-[10px] text-white">ATAU</span>
+                                <div className="flex-1 h-px bg-white/20"></div>
+                            </div>
+
+                            <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-3">
+                                Masuk dengan Google
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // BERANDA
+        // ==========================================
+        function HomeView({ setActiveTab, history }) {
+            const stats = [
+                { label: "Total Aset", value: history.length, icon: "ph-clock-counter-clockwise" },
+                { label: "Gambar Dibuat", value: history.filter(h => h.type === 'image').length, icon: "ph-image" },
+                { label: "Prompt Dihasilkan", value: history.filter(h => h.type === 'tiktok_campaign').length, icon: "ph-text-t" },
+                { label: "Prompt Algo", value: history.filter(h => h.type === 'tiktok_algo').length, icon: "ph-magic-wand" },
+            ];
+
+            return (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <header className="mb-12">
+                        <h2 className="text-4xl font-extrabold mb-2 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]">Selamat datang di Virexa Studio.</h2>
+                        <p className="text-red-200/80 text-lg">Platform Generatif Ultra Realistis.</p>
+                    </header>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+                        {stats.map((stat, i) => (
+                            <div key={i} className="bg-[#0a0000]/80 border border-white/20 p-6 rounded-2xl backdrop-blur-xl shadow-[0_0_15px_rgba(255,255,255,0.03)] hover:border-white/40 transition-all duration-300">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-red-950/50 border border-white/10 rounded-xl text-white shadow-[0_0_10px_rgba(255,255,255,0.1)]">
+                                        <i className={`ph ${stat.icon} text-2xl`}></i>
+                                    </div>
+                                    <div>
+                                        <p className="text-red-200/60 text-xs font-bold uppercase tracking-wider">{stat.label}</p>
+                                        <p className="text-2xl font-bold text-white">{stat.value}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <h3 className="text-xl font-bold mb-4 text-white">Aksi Cepat</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <QuickActionCard 
+                            icon="ph-image" title="Affiliate Studio" desc="Render 8 variasi sudut & model." color="from-red-600 to-black" onClick={() => setActiveTab('image-gen')}
+                        />
+                        <QuickActionCard 
+                            icon="ph-fill ph-lightning" title="TikTok Factory" desc="Otomatisasi 3 Scene & Metadata SEO." color="from-white to-red-900" onClick={() => setActiveTab('prompt-tools')}
+                        />
+                        <QuickActionCard 
+                            icon="ph-magic-wand" title="Prompt Algoritma Tiktok" desc="Racik script FYP & tagar viral dari fotomu." color="from-[#3a0404] to-black" onClick={() => setActiveTab('tiktok-algo')}
+                        />
+                    </div>
+                </div>
+            );
+        }
+
+        function QuickActionCard({ icon, title, desc, color, onClick }) {
+            return (
+                <button onClick={onClick} className="group text-left relative overflow-hidden rounded-2xl bg-black/60 border border-white/20 p-6 hover:border-white/50 hover:shadow-[0_0_20px_rgba(255,255,255,0.15)] backdrop-blur-xl transition-all duration-500">
+                    <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-20 rounded-bl-full transition-transform group-hover:scale-125`}></div>
+                    <i className={`${icon} text-3xl mb-4 text-white/50 group-hover:text-white transition-colors drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]`}></i>
+                    <h4 className="text-lg font-bold mb-1 text-gray-100 group-hover:text-white">{title}</h4>
+                    <p className="text-sm text-red-200/50">{desc}</p>
+                </button>
+            );
+        }
+
+        // ==========================================
+        // AFFILIATE STUDIO (IMAGE GEN)
+        // ==========================================
+        function ImageGenView({ showToast, saveHistory }) {
+            const [prompt, setPrompt] = useState("");
+            const [style, setStyle] = useState("studio");
+            const [ratio, setRatio] = useState("9:16"); 
+            const [storeName, setStoreName] = useState("");
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [progressMsg, setProgressMsg] = useState("");
+            const [generatedImages, setGeneratedImages] = useState({ product: [], model: [], ratio: '9:16' }); 
+
+            const [baseImageFile, setBaseImageFile] = useState(null);
+            const [baseImagePreview, setBaseImagePreview] = useState(null);
+            
+            const [modelImageFile, setModelImageFile] = useState(null);
+            const [modelImagePreview, setModelImagePreview] = useState(null);
+
+            const abortControllerRef = useRef(null);
+
+            const handleImageChange = (e, type) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (type === 'product') {
+                        if (baseImagePreview) URL.revokeObjectURL(baseImagePreview);
+                        setBaseImageFile(file);
+                        setBaseImagePreview(URL.createObjectURL(file));
+                    } else {
+                        if (modelImagePreview) URL.revokeObjectURL(modelImagePreview);
+                        setModelImageFile(file);
+                        setModelImagePreview(URL.createObjectURL(file));
+                    }
+                }
+            };
+
+            const handleStop = () => {
+                if (abortControllerRef.current) abortControllerRef.current.abort();
+                setIsGenerating(false);
+                setProgressMsg("Proses dihentikan");
+            };
+
+            const handleGenerate = async () => {
+                if (!prompt.trim() && !baseImageFile && !modelImageFile) return showToast("Masukkan Deskripsi ATAU Unggah minimal 1 gambar", "error");
+                setIsGenerating(true);
+                setGeneratedImages({ product: [], model: [], ratio: ratio }); 
+                abortControllerRef.current = new AbortController();
+                const currentSignal = abortControllerRef.current.signal;
+                
+                try {
+                    const boost = style === 'studio' ? ", professional commercial photography, well-lit studio lighting, 8k resolution, crisp focus, commercial e-commerce style, hyper-detailed" : 
+                                  style === 'lifestyle' ? ", contextual lifestyle photography, real world setting, bright and inviting, cinematic commercial look, user generated content style, organic look" :
+                                  ", minimalist aesthetic, clean modern background, modern e-commerce style, soft pastel shadows, 4k resolution";
+                    
+                    const interactionRule = "interacting naturally with the product";
+
+                    const group1Variations = [
+                        { label: 'Full Body Berjalan', promptBoost: `[CAMERA: FULL BODY SHOT] [ACTION: WALKING FORWARD DYNAMICALLY]. Model is walking towards the camera with a confident stride in a modern aesthetic setting, ${interactionRule}.` },
+                        { label: 'Setengah Badan (Close)', promptBoost: `[CAMERA: MEDIUM CLOSE-UP] [ACTION: STANDING STILL]. Model is seen from chest-up, looking directly at camera, smiling warmly, ${interactionRule}, modern background.` },
+                        { label: 'Pose Menyamping', promptBoost: `[CAMERA: SIDE PROFILE] [ACTION: LOOKING AWAY]. Model is turned sideways, face in profile, waist-up, looking off-camera, ${interactionRule}, well-lit modern aesthetic setting.` },
+                        { label: 'Produk Tunggal', noModel: true, promptBoost: `[CAMERA: PRODUCT MACRO SHOT]. STRICTLY NO HUMAN MODEL. Focus exclusively on the product heroically displayed in the center. Add highly aesthetic, modern typography overlay clearly displaying the product name, size, and key specifications.` }
+                    ];
+
+                    const group2Variations = [
+                        { label: 'Duduk Santai', promptBoost: `[CAMERA: FULL WIDE SHOT] [ACTION: SITTING RELAXED]. Model is sitting elegantly on a modern aesthetic chair or sofa, ${interactionRule}.` },
+                        { label: 'High Angle', promptBoost: `[CAMERA: HIGH ANGLE SHOT, LOOKING DOWN]. Model is waist-up, looking up playfully at the camera while presenting the product, bright modern background, ${interactionRule}.` },
+                        { label: 'Low Angle', promptBoost: `[CAMERA: LOW ANGLE SHOT, LOOKING UP]. Half-body shot from below to make the model look heroic, ${interactionRule}, modern architecture background.` },
+                        { label: 'Berdiri Simetris', promptBoost: `[CAMERA: WIDE SHOT] [ACTION: STANDING PERFECTLY STRAIGHT]. Model is full-body, perfectly symmetrical in the center of frame, minimalist modern background, ${interactionRule}, high-end catalog look.` }
+                    ];
+
+                    const textIndices = [];
+                    if (storeName.trim() !== "") {
+                        while(textIndices.length < 2){
+                            const r = Math.floor(Math.random() * 8);
+                            if(textIndices.indexOf(r) === -1) textIndices.push(r);
+                        }
+                    }
+
+                    let base64Product = null;
+                    if (baseImageFile) {
+                        const raw = await fileToBase64(baseImageFile);
+                        const comp = await generateThumbnail(`data:image/jpeg;base64,${raw}`, 800); 
+                        base64Product = comp ? comp.split(',')[1] : raw;
+                    }
+
+                    let base64Model = null;
+                    if (modelImageFile) {
+                        const raw = await fileToBase64(modelImageFile);
+                        const comp = await generateThumbnail(`data:image/jpeg;base64,${raw}`, 800);
+                        base64Model = comp ? comp.split(',')[1] : raw;
+                    }
+
+                    let currentResults = { product: [], model: [], ratio: ratio };
+                    let currentTask = 1;
+
+                    const safePrompt = prompt.trim() !== "" ? prompt : "High-quality commercial product presentation";
+
+                    const generateSingle = async (variation, globalIndex) => {
+                        if (currentSignal.aborted) throw new Error("Proses dihentikan pengguna");
+                        setProgressMsg(`Merender ${currentTask} dari 8: ${variation.label}...`);
+                        
+                        const isTextTarget = textIndices.includes(globalIndex);
+                        const textBoost = isTextTarget ? ` The text "${storeName.toUpperCase()}" is clearly visible as a large, glowing, aesthetic 3D neon sign or beautiful architectural lettering mounted on the background wall behind the model. Typography is perfect.` : '';
+
+                        const taskPrompt = `${safePrompt}. ${variation.promptBoost}${textBoost} ${boost}`;
+                        let url = null;
+
+                        try {
+                            if (variation.noModel) {
+                                if (base64Product) url = await AI.editImage([base64Product], `Create a high-end commercial product shot using this reference image. ${taskPrompt}. STRICTLY NO HUMAN MODEL. Focus entirely on the product aesthetics.`, ratio, currentSignal);
+                                else url = await AI.generateImage(`${taskPrompt}. STRICTLY NO HUMAN MODEL.`, ratio, currentSignal);
+                            } else if (base64Product && base64Model) {
+                                url = await AI.editImage([base64Product, base64Model], `Image 1 is the PRODUCT. Image 2 is the HUMAN MODEL. You MUST combine them organically. Have the EXACT model from Image 2 interact with the PRODUCT from Image 1. ${taskPrompt}`, ratio, currentSignal);
+                            } else if (base64Product) {
+                                url = await AI.editImage([base64Product], `Create a new image featuring a human model interacting with the PRODUCT in the reference image. ${taskPrompt}. Ensure the pose strictly follows the prompt!`, ratio, currentSignal);
+                            } else if (base64Model) {
+                                url = await AI.editImage([base64Model], `Create a new image using the MODEL's face/identity from the reference image. They are interacting with a product (${safePrompt}). ${taskPrompt}. Ensure the pose strictly follows the prompt!`, ratio, currentSignal);
+                            } else {
+                                url = await AI.generateImage(taskPrompt, ratio, currentSignal);
+                            }
+                        } catch (e) {
+                            if (e.message === "Proses dihentikan pengguna") throw e;
+                            console.error(`Gagal render ${variation.label}:`, e);
+                            showToast(`Gagal merender ${variation.label}: ${e.message}`, "error");
+                        }
+                        
+                        currentTask++;
+                        return { ...variation, url, hasText: isTextTarget };
+                    };
+
+                    for (let i = 0; i < group1Variations.length; i++) {
+                        if (currentSignal.aborted) break;
+                        const res = await generateSingle(group1Variations[i], i);
+                        if (currentSignal.aborted) break;
+                        if (res.url) {
+                            currentResults.product.push(res);
+                            setGeneratedImages({ ...currentResults });
+                            await saveHistory('image', { prompt: safePrompt, url: res.url, style: style, ratio: ratio, mode: `Pose: ${res.label}` });
+                        }
+                    }
+
+                    for (let i = 0; i < group2Variations.length; i++) {
+                        if (currentSignal.aborted) break;
+                        const res = await generateSingle(group2Variations[i], i + 4);
+                        if (currentSignal.aborted) break;
+                        if (res.url) {
+                            currentResults.model.push(res);
+                            setGeneratedImages({ ...currentResults });
+                            await saveHistory('image', { prompt: safePrompt, url: res.url, style: style, ratio: ratio, mode: `Pose: ${res.label}` });
+                        }
+                    }
+
+                    if (!currentSignal.aborted && (currentResults.product.length > 0 || currentResults.model.length > 0)) showToast("Proses render selesai!");
+
+                } catch (error) {
+                    if (error.message === "Proses dihentikan pengguna") showToast("Proses berhasil dihentikan", "info");
+                    else showToast(error.message || "Gagal membuat gambar", "error");
+                } finally {
+                    setIsGenerating(false);
+                    setProgressMsg("");
+                }
+            };
+
+            return (
+                <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500">
+                    <div className="mb-8">
+                        <h2 className="text-3xl font-bold flex items-center gap-3 text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+                            <i className="ph ph-image text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"></i> Affiliate Image Studio
+                        </h2>
+                        <p className="text-red-200/80 mt-2">Sistem cerdas merender 8 pose promosi interaktif model secara otomatis.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="col-span-1 flex flex-col gap-4">
+                            <div className="bg-[#0a0000]/80 backdrop-blur-md border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)] rounded-2xl p-4 flex flex-col">
+                                <label className="block text-sm font-bold text-white mb-1 flex items-center gap-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">
+                                    <i className="ph ph-cloud-arrow-up text-lg"></i> 1. Produk Asli
+                                </label>
+                                <p className="text-[10px] text-red-300/60 mb-3 leading-tight">Basis bentuk barang.</p>
+                                {baseImagePreview ? (
+                                    <div className="relative w-full h-32">
+                                        <img src={baseImagePreview} alt="Base Product" className="w-full h-full object-cover rounded-xl border border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+                                        <button onClick={() => {setBaseImageFile(null); setBaseImagePreview(null);}} className="absolute top-1 right-1 bg-black/80 p-1.5 rounded-lg text-white hover:bg-red-600 border border-white/20 transition-colors text-xs">Hapus</button>
+                                    </div>
+                                ) : (
+                                    <label className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/20 hover:border-white/60 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] rounded-xl cursor-pointer bg-black/50 transition-all p-2 text-center">
+                                        <span className="text-gray-300 text-xs font-medium">+ Pilih Gambar Produk</span>
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageChange(e, 'product')} />
+                                    </label>
+                                )}
+                            </div>
+
+                            <div className="bg-[#0a0000]/80 backdrop-blur-md border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)] rounded-2xl p-4 flex flex-col">
+                                <label className="block text-sm font-bold text-white mb-1 flex items-center gap-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">
+                                    <i className="ph ph-user text-lg"></i> 2. Wajah Model
+                                </label>
+                                <p className="text-[10px] text-red-300/60 mb-3 leading-tight">Padukan agar model memakai produk.</p>
+                                {modelImagePreview ? (
+                                    <div className="relative w-full h-32">
+                                        <img src={modelImagePreview} alt="Model" className="w-full h-full object-cover rounded-xl border border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.2)] object-top" />
+                                        <button onClick={() => {setModelImageFile(null); setModelImagePreview(null);}} className="absolute top-1 right-1 bg-black/80 p-1.5 rounded-lg text-white hover:bg-red-600 border border-white/20 transition-colors text-xs">Hapus</button>
+                                    </div>
+                                ) : (
+                                    <label className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/20 hover:border-white/60 hover:shadow-[0_0_15px_rgba(255,255,255,0.2)] rounded-xl cursor-pointer bg-black/50 transition-all p-2 text-center">
+                                        <span className="text-gray-300 text-xs font-medium">+ Pilih Wajah Model</span>
+                                        <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageChange(e, 'model')} />
+                                    </label>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="col-span-1 lg:col-span-2 bg-[#0a0000]/80 backdrop-blur-md border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)] rounded-2xl p-6">
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-white mb-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">3. Deskripsi Promosi (Opsional)</label>
+                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Contoh: 'Alat berat ekskavator berwarna kuning menyala di lokasi proyek'..." className="w-full bg-black/80 border border-white/30 rounded-xl p-4 text-white focus:outline-none focus:border-white focus:shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all h-24 resize-none text-sm leading-relaxed" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-white mb-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">4. Nama Toko (Opsional)</label>
+                                    <input type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} placeholder="Cth: TOKO KOSMETIK VIREXA" className="w-full bg-black/80 border border-white/30 rounded-xl p-4 text-white focus:outline-none focus:border-white transition-all text-sm uppercase" />
+                                </div>
+                                
+                                <div className="flex flex-wrap gap-4 mt-2">
+                                    <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-sm font-bold text-white mb-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">Style</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['studio', 'lifestyle', 'minimalist'].map(s => (
+                                                <button key={s} onClick={() => setStyle(s)} className={`px-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold capitalize transition-all ${style === s ? 'bg-white/20 text-white border border-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'bg-black border border-white/20 text-gray-400 hover:text-white'}`}>{s}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-[140px]">
+                                        <label className="block text-sm font-bold text-white mb-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">Aspect Ratio</label>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['1:1', '16:9', '9:16'].map(r => (
+                                                <button key={r} onClick={() => setRatio(r)} className={`px-1 py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all ${ratio === r ? 'bg-white/20 text-white border border-white shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'bg-black border border-white/20 text-gray-400 hover:text-white'}`}>{r}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 w-full mt-4">
+                                    <button onClick={handleGenerate} disabled={isGenerating} className="flex-1 bg-gradient-to-r from-[#4a0404] to-black hover:from-[#6a0505] hover:to-[#1a0000] border border-white/50 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all disabled:opacity-50 shadow-[0_0_20px_rgba(255,255,255,0.15)]">
+                                        <div className="flex items-center gap-2">
+                                            {isGenerating ? <i className="ph ph-spinner-gap animate-spin text-xl"></i> : <i className="ph-fill ph-sparkle text-xl"></i>}
+                                            <span className="text-lg drop-shadow-[0_0_5px_rgba(0,0,0,0.8)]">Generate 8 Pose Komersial</span>
+                                        </div>
+                                        {isGenerating && <span className="text-xs text-white/80 font-medium">{progressMsg}</span>}
+                                    </button>
+                                    {isGenerating && (
+                                        <button onClick={handleStop} title="Hentikan" className="bg-red-600 hover:bg-red-700 border border-red-400 text-white px-5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.4)]">
+                                            <i className="ph ph-stop-circle text-2xl"></i>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {(generatedImages.product.length > 0 || generatedImages.model.length > 0) && (
+                        <div className="mt-8 space-y-8 animate-in slide-in-from-bottom-6 duration-500">
+                            {generatedImages.product.length > 0 && (
+                                <div className="bg-[#0a0000]/80 border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)] rounded-2xl p-4 sm:p-6">
+                                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/20">
+                                        <i className="ph ph-user text-2xl text-white"></i>
+                                        <h3 className="text-xl font-bold text-white">1. Pose Model Aktif</h3>
+                                    </div>
+                                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${generatedImages.ratio === '16:9' ? 'lg:grid-cols-2' : 'lg:grid-cols-4'} gap-4`}>
+                                        {generatedImages.product.map((img, idx) => (
+                                            <div key={idx} className="bg-black border border-white/30 rounded-xl overflow-hidden flex flex-col">
+                                                <img src={img.url} alt={img.label} className="w-full object-cover" />
+                                                <div className="p-3 bg-[#110000] flex justify-center">
+                                                    <a href={img.url} download={`pose-${Date.now()}.png`} className="text-xs font-bold text-white hover:text-red-300 flex items-center gap-2"><i className="ph ph-download-simple"></i> Download</a>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {generatedImages.model.length > 0 && (
+                                <div className="bg-[#0a0000]/80 border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)] rounded-2xl p-4 sm:p-6">
+                                    <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/20">
+                                        <i className="ph ph-camera text-2xl text-white"></i>
+                                        <h3 className="text-xl font-bold text-white">2. Pose Sudut Pandang Komersial</h3>
+                                    </div>
+                                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${generatedImages.ratio === '16:9' ? 'lg:grid-cols-2' : 'lg:grid-cols-4'} gap-4`}>
+                                        {generatedImages.model.map((img, idx) => (
+                                            <div key={idx} className="bg-black border border-white/30 rounded-xl overflow-hidden flex flex-col">
+                                                <img src={img.url} alt={img.label} className="w-full object-cover" />
+                                                <div className="p-3 bg-[#110000] flex justify-center">
+                                                    <a href={img.url} download={`komersial-${Date.now()}.png`} className="text-xs font-bold text-white hover:text-red-300 flex items-center gap-2"><i className="ph ph-download-simple"></i> Download</a>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // TIKTOK FACTORY
+        // ==========================================
+        function PromptToolsView({ showToast, saveHistory }) {
+            const [imageFile, setImageFile] = useState(null);
+            const [imagePreview, setImagePreview] = useState(null);
+            const [productName, setProductName] = useState("");
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [campaignData, setCampaignData] = useState(null);
+
+            const handleImageChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (imagePreview) URL.revokeObjectURL(imagePreview);
+                    setImageFile(file);
+                    setImagePreview(URL.createObjectURL(file));
+                }
+            };
+
+            const handleGenerate = async () => {
+                if (!imageFile) return showToast("Upload foto produk dulu", "error");
+                if (!productName) return showToast("Masukkan nama produk", "error");
+                setIsGenerating(true);
+                
+                try {
+                    const rawBase = await fileToBase64(imageFile);
+                    const systemPrompt = `Buatkan 3 scene script TikTok untuk produk: ${productName}. Format JSON { "judul": "...", "caption": "...", "tagar": "...", "scenes": [ { "scene": 1, "tipe": "HOOK", "visualPrompt": "...", "dialog": "..." } ] }`;
+                    const resultStr = await AI.analyzeImage(rawBase, systemPrompt);
+                    
+                    const cleanJson = resultStr.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+                    const startIndex = cleanJson.indexOf('{');
+                    const endIndex = cleanJson.lastIndexOf('}');
+                    const parsedData = JSON.parse(cleanJson.substring(startIndex, endIndex + 1));
+
+                    let currentCampaignData = { ...parsedData, scenes: parsedData.scenes.map(s => ({ ...s, url: null })) };
+                    setCampaignData(currentCampaignData);
+
+                    for (let i = 0; i < parsedData.scenes.length; i++) {
+                        const sceneData = parsedData.scenes[i];
+                        const imageUrl = await AI.editImage([rawBase], sceneData.visualPrompt, "9:16");
+                        currentCampaignData.scenes[i].url = imageUrl;
+                        setCampaignData({ ...currentCampaignData });
+                    }
+                    await saveHistory('tiktok_campaign', currentCampaignData);
+                    showToast("Kampanye selesai!");
+                } catch (e) {
+                    showToast(e.message || "Gagal generate", "error");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            return (
+                <div className="max-w-6xl mx-auto space-y-6">
+                    <h2 className="text-3xl font-bold flex items-center gap-3 text-white"><i className="ph-fill ph-lightning"></i> TikTok Factory</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 bg-[#0a0000]/80 p-6 rounded-2xl border border-white/20">
+                        <div className="flex flex-col">
+                            <label className="block text-sm font-bold text-white mb-2">1. Upload Produk</label>
+                            {imagePreview ? (
+                                <img src={imagePreview} className="w-full h-48 object-cover rounded-xl border border-white/40" />
+                            ) : (
+                                <label className="w-full h-48 flex flex-col items-center justify-center border-2 border-dashed border-white/20 rounded-xl cursor-pointer bg-black/50">
+                                    <i className="ph ph-cloud-arrow-up text-4xl mb-2 text-white/50"></i>
+                                    <span className="text-white font-bold text-sm">Upload Gambar</span>
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                                </label>
+                            )}
+                        </div>
+                        <div className="flex flex-col justify-center gap-4">
+                            <input type="text" value={productName} onChange={e => setProductName(e.target.value)} placeholder="Nama Produk" className="w-full bg-black/80 border border-white/30 rounded-xl p-4 text-white focus:outline-none" />
+                            <button onClick={handleGenerate} disabled={isGenerating || !imageFile} className="w-full bg-gradient-to-r from-[#4a0404] to-black border border-white/50 text-white font-bold py-4 rounded-xl flex justify-center gap-2 items-center">
+                                {isGenerating ? <i className="ph ph-spinner-gap animate-spin text-xl"></i> : <i className="ph-fill ph-sparkle text-xl"></i>} Generate Kampanye
+                            </button>
+                        </div>
+                    </div>
+                    {campaignData && (
+                        <div className="space-y-6">
+                            <div className="bg-black border border-white/30 rounded-2xl p-6">
+                                <h3 className="font-bold text-white mb-2">{campaignData.judul}</h3>
+                                <p className="text-sm text-gray-300">{campaignData.caption}</p>
+                                <p className="text-sm text-red-400 mt-2">{campaignData.tagar}</p>
+                            </div>
+                            <div className="flex flex-col gap-4">
+                                {campaignData.scenes.map((s, i) => (
+                                    <div key={i} className="flex flex-col lg:flex-row bg-[#0a0000]/80 border border-white/20 rounded-2xl overflow-hidden">
+                                        <div className="w-full lg:w-64 aspect-[9/16] bg-black">
+                                            {s.url ? <img src={s.url} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-xs text-white">Merender...</div>}
+                                        </div>
+                                        <div className="p-6 flex-1 flex flex-col">
+                                            <p className="text-xs text-red-300 font-bold">Visual Prompt:</p>
+                                            <p className="text-xs text-gray-300 font-mono mb-4">{s.visualPrompt}</p>
+                                            <p className="text-xs text-red-300 font-bold">Dialog:</p>
+                                            <p className="text-sm text-white italic">"{s.dialog}"</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // ==========================================
+        // PROMPT FINDER
+        // ==========================================
+        function PromptFinderView({ showToast, saveHistory }) {
+            const [mediaFile, setMediaFile] = useState(null);
+            const [mediaPreview, setMediaPreview] = useState(null);
+            const [base64Data, setBase64Data] = useState(null);
+            const [analysis, setAnalysis] = useState(null);
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+            const handleMediaChange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    setMediaFile(file);
+                    if (file.type.startsWith('video/')) {
+                        const frame = await extractFrameFromVideo(file);
+                        setMediaPreview(`data:image/jpeg;base64,${frame}`);
+                        setBase64Data(frame);
+                    } else {
+                        setMediaPreview(URL.createObjectURL(file));
+                        setBase64Data(await fileToBase64(file));
+                    }
+                }
+            };
+
+            const handleAnalyze = async () => {
+                if (!base64Data) return;
+                setIsAnalyzing(true);
+                try {
+                    const systemPrompt = `Extract perfect prompt from image. Format JSON { "mainPrompt": "...", "negativePrompt": "..." }`;
+                    const result = await AI.analyzeImage(base64Data, systemPrompt);
+                    const cleanJson = result.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+                    const parsedData = JSON.parse(cleanJson);
+                    setAnalysis(parsedData);
+                    await saveHistory('vision', { output: `[MAIN]\n${parsedData.mainPrompt}\n\n[NEGATIVE]\n${parsedData.negativePrompt}` });
+                    showToast("Selesai!");
+                } catch (e) {
+                    showToast(e.message, "error");
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            return (
+                <div className="max-w-5xl mx-auto space-y-6">
+                    <h2 className="text-3xl font-bold flex items-center gap-3 text-white"><i className="ph ph-camera"></i> Prompt Finder</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-[#0a0000]/80 p-6 rounded-2xl border border-white/20">
+                            {mediaPreview ? (
+                                <img src={mediaPreview} className="w-full h-64 object-cover rounded-xl border border-white/40 mb-4" />
+                            ) : (
+                                <label className="w-full h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/20 rounded-xl cursor-pointer mb-4">
+                                    <span className="text-white font-bold">Upload Media</span>
+                                    <input type="file" className="hidden" accept="image/*,video/mp4" onChange={handleMediaChange} />
+                                </label>
+                            )}
+                            <button onClick={handleAnalyze} disabled={!base64Data || isAnalyzing} className="w-full bg-gradient-to-r from-[#4a0404] to-black border border-white/50 text-white font-bold py-4 rounded-xl">
+                                {isAnalyzing ? "Menganalisis..." : "Reverse Engineer Prompt"}
+                            </button>
+                        </div>
+                        <div className="bg-[#0a0000]/80 p-6 rounded-2xl border border-white/20">
+                            {analysis && (
+                                <div className="space-y-4">
+                                    <div className="bg-[#110000] p-4 rounded-xl border border-white/20"><p className="text-xs text-white font-bold mb-2">Main Prompt:</p><p className="text-sm text-gray-300">{analysis.mainPrompt}</p></div>
+                                    <div className="bg-[#2a0404] p-4 rounded-xl border border-red-900/50"><p className="text-xs text-red-400 font-bold mb-2">Negative Prompt:</p><p className="text-sm text-red-200">{analysis.negativePrompt}</p></div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // PROMPT ALGORITMA
+        // ==========================================
+        function TiktokAlgoView({ showToast, saveHistory }) {
+            const [base64Data, setBase64Data] = useState(null);
+            const [generatedPrompt, setGeneratedPrompt] = useState(null);
+            const [isGenerating, setIsGenerating] = useState(false);
+
+            const handleImageChange = async (e) => {
+                const file = e.target.files[0];
+                if (file) setBase64Data(await fileToBase64(file));
+            };
+
+            const handleGenerate = async () => {
+                if (!base64Data) return;
+                setIsGenerating(true);
+                try {
+                    const systemPrompt = `Buatkan script algoritma FYP edukasi. Format JSON { "metadata": "...", "scenes": [ { "scene": 1, "visualPrompt": "...", "dialog": "..." } ] }`;
+                    const result = await AI.analyzeImage(base64Data, systemPrompt);
+                    const parsedData = JSON.parse(result.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim());
+                    setGeneratedPrompt(parsedData);
+                    await saveHistory('tiktok_algo', { prompt: parsedData });
+                    showToast("Selesai!");
+                } catch (e) {
+                    showToast(e.message, "error");
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            return (
+                <div className="max-w-5xl mx-auto space-y-6">
+                    <h2 className="text-3xl font-bold flex items-center gap-3 text-white"><i className="ph ph-magic-wand"></i> Prompt Algoritma Tiktok</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="bg-[#0a0000]/80 p-6 rounded-2xl border border-white/20">
+                            <label className="w-full h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/20 rounded-xl cursor-pointer mb-4">
+                                <span className="text-white font-bold">Upload Foto</span>
+                                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                            </label>
+                            <button onClick={handleGenerate} disabled={!base64Data || isGenerating} className="w-full bg-gradient-to-r from-[#4a0404] to-black border border-white/50 text-white font-bold py-4 rounded-xl">
+                                {isGenerating ? "Loading..." : "Generate Naskah FYP"}
+                            </button>
+                        </div>
+                        <div className="bg-[#0a0000]/80 p-6 rounded-2xl border border-white/20 overflow-y-auto">
+                            {generatedPrompt && (
+                                <div className="space-y-4">
+                                    <div className="bg-[#110000] p-4 rounded-xl border border-white/20"><p className="text-sm text-gray-300 whitespace-pre-wrap">{generatedPrompt.metadata}</p></div>
+                                    {generatedPrompt.scenes.map((s, i) => (
+                                        <div key={i} className="bg-[#110000] p-4 rounded-xl border border-white/20">
+                                            <p className="text-xs text-red-400 font-bold mb-1">SCENE {s.scene}</p>
+                                            <p className="text-xs text-gray-400 mb-2">{s.visualPrompt}</p>
+                                            <p className="text-sm text-white italic">"{s.dialog}"</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ==========================================
+        // HISTORY VIEW
+        // ==========================================
+        function HistoryView({ history }) {
+            if (history.length === 0) return <div className="text-center mt-20 text-gray-500">Belum ada riwayat</div>;
+            return (
+                <div className="max-w-5xl mx-auto space-y-6 pb-10">
+                    <h2 className="text-3xl font-bold text-white"><i className="ph ph-clock-counter-clockwise"></i> Aset Saya</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {history.map((item) => (
+                            <div key={item.id} className="bg-[#0a0000]/80 border border-white/20 rounded-2xl overflow-hidden">
+                                {item.type === 'image' && (
+                                    <>
+                                        <div className="h-48 overflow-hidden bg-black"><img src={item.url} className="w-full h-full object-cover" /></div>
+                                        <div className="p-4 bg-[#110000]"><p className="text-sm text-gray-200 line-clamp-2">{item.prompt}</p></div>
+                                    </>
+                                )}
+                                {item.type === 'tiktok_campaign' && (
+                                    <div className="p-4"><p className="text-sm font-bold text-white mb-2">TikTok Campaign</p><p className="text-xs text-gray-400 line-clamp-3">{item.judul}</p></div>
+                                )}
+                                {item.type === 'vision' && (
+                                    <div className="p-4"><p className="text-sm font-bold text-white mb-2">Prompt Finder</p><p className="text-xs text-gray-400 line-clamp-3">{item.output}</p></div>
+                                )}
+                                {item.type === 'tiktok_algo' && (
+                                    <div className="p-4"><p className="text-sm font-bold text-white mb-2">Algoritma Prompt</p><p className="text-xs text-gray-400 line-clamp-3">Berhasil Dibuat</p></div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

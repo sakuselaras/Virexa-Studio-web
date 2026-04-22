@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virexa Studio - Admin Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- SUPABASE SDK CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* Custom Scrollbar for Dark Theme */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #050000; }
+        ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
+        
+        body {
+            background-color: #050000;
+            color: #f3f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(10, 0, 0, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.05);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(74, 4, 4, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            border-left: 4px solid #ef4444;
+            color: white;
+        }
+        
+        .nav-item {
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .glow-text { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); }
+        .view-hidden { display: none !important; }
+
+        /* Custom Range Slider (Equalizer Style) */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #22c55e;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 15px rgba(34,197,94,0.8);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #1f2937;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden selection:bg-red-500/30 relative">
+
+    <!-- ============================================== -->
+    <!-- LAYAR KUNCI ADMIN (PASSWORD SCREEN) -->
+    <!-- ============================================== -->
+    <div id="auth-overlay" class="fixed inset-0 z-[100] bg-[#050000]/95 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-sm flex flex-col items-center shadow-[0_0_50px_rgba(220,38,38,0.1)] border-red-900/30">
+            <div class="relative mb-6">
+                <div class="absolute inset-0 bg-red-600 blur-lg opacity-40 rounded-full"></div>
+                <i class="ph-fill ph-lock-key text-6xl text-red-500 relative z-10 drop-shadow-[0_0_15px_rgba(220,38,38,0.8)]"></i>
+            </div>
+            
+            <h2 class="text-2xl font-black text-white mb-2 tracking-wide">AKSES TERKUNCI</h2>
+            <p class="text-xs text-gray-400 mb-8 text-center">Masukkan kode keamanan otoritas untuk mengakses Command Center.</p>
+            
+            <input type="password" id="admin-password" placeholder="Kode Akses..." class="w-full bg-black/80 border border-red-900/50 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-red-500 mb-4 text-center tracking-[0.3em] font-mono shadow-inner transition-all">
+            
+            <button id="btn-login" class="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] hover:shadow-[0_0_25px_rgba(220,38,38,0.5)] flex items-center justify-center gap-2">
+                <i class="ph-bold ph-sign-in"></i> Buka Sistem
+            </button>
+            
+            <p id="auth-error" class="text-xs text-red-500 mt-4 hidden font-bold animate-pulse">❌ Kode akses ditolak!</p>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-72 glass-panel border-r border-white/10 flex flex-col z-20 shrink-0 relative overflow-hidden">
+        <div class="absolute top-[-10%] left-[-20%] w-[150%] h-[30%] bg-[#4a0404] rounded-full blur-[100px] opacity-20 pointer-events-none"></div>
+
+        <div class="p-6 flex items-center gap-3 border-b border-white/10 relative z-10">
+            <div class="relative">
+                <div class="absolute inset-0 bg-red-600 blur-md opacity-40 rounded-full"></div>
+                <i class="ph-fill ph-shield-check text-3xl text-white relative z-10"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-red-500 tracking-tight">VIREXA</h1>
+                <p class="text-[9px] uppercase tracking-widest text-red-400 font-bold">Command Center</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-6 flex flex-col gap-1 overflow-y-auto relative z-10">
+            <p class="px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Menu Utama</p>
+            <a href="#" id="nav-dashboard" onclick="switchView('dashboard')" class="nav-item active flex items-center gap-3 px-6 py-3 text-sm font-medium">
+                <i class="ph ph-squares-four text-lg"></i> Dashboard Overview
+            </a>
+            <a href="#" id="nav-users" onclick="switchView('users')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-users text-lg"></i> Manajemen Kreator
+            </a>
+            <a href="#" id="nav-calculator" onclick="switchView('calculator')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-calculator text-lg"></i> Kalkulator Bisnis
+            </a>
+        </nav>
+
+        <div class="p-6 border-t border-white/10 relative z-10">
+            <div class="flex items-center gap-3 bg-black/50 p-3 rounded-xl border border-white/5">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-red-700 to-black flex items-center justify-center border border-red-500/30">
+                    <i class="ph-fill ph-user-circle text-xl text-white"></i>
+                </div>
+                <div class="flex-1 overflow-hidden">
+                    <p class="text-sm font-bold text-white truncate" id="adminEmail">Super Admin</p>
+                    <p class="text-[10px] text-green-400 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Sistem Online</p>
+                </div>
+            </div>
+            <button onclick="logoutAdmin()" class="w-full mt-3 py-2 bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-xs font-bold transition-all border border-red-900/50 flex items-center justify-center gap-2">
+                <i class="ph ph-sign-out"></i> Keluar / Kunci Sistem
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col relative overflow-hidden bg-gradient-to-br from-[#0a0000] via-black to-[#1a0505]">
+        
+        <!-- Header -->
+        <header class="h-20 glass-panel border-b border-white/5 flex items-center justify-between px-8 z-20 shrink-0">
+            <div>
+                <h2 id="header-title" class="text-2xl font-bold text-white glow-text">Dashboard Overview</h2>
+                <p id="header-desc" class="text-xs text-gray-400">Memantau aktivitas AI dan beban server secara Real-Time.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="bg-black/40 border border-white/10 px-4 py-2 rounded-lg flex items-center gap-2">
+                    <i class="ph ph-clock text-red-500"></i>
+                    <span id="clock" class="text-sm font-mono text-gray-200">00:00:00</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- VIEW: DASHBOARD OVERVIEW -->
+        <!-- ============================================== -->
+        <div id="view-dashboard" class="flex-1 overflow-y-auto p-8 z-10 fade-in">
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Card 1 -->
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-red-600 rounded-full blur-[50px] opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Kreator</p>
+                            <h3 id="dash-total-users" class="text-3xl font-black text-white mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                            <i class="ph ph-users-three text-xl text-gray-300"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-green-400 flex items-center gap-1 relative z-10"><i class="ph-bold ph-trend-up"></i> Data Real-Time (Supabase)</p>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-blue-600 rounded-full blur-[50px] opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total Render AI</p>
+                            <h3 id="dash-total-gen" class="text-3xl font-black text-white mt-1">0</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                            <i class="ph ph-image text-xl text-gray-300"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-green-400 flex items-center gap-1 relative z-10"><i class="ph-bold ph-trend-up"></i> Diperbarui otomatis</p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-purple-600 rounded-full blur-[50px] opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status Server</p>
+                            <h3 class="text-3xl font-black text-white mt-1">Aman</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                            <i class="ph ph-cpu text-xl text-gray-300"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 flex items-center gap-1 relative z-10"><i class="ph-bold ph-check-circle text-green-500"></i> API Polling Aktif</p>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="glass-panel p-6 rounded-2xl relative overflow-hidden group border-red-900/50">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-red-600 rounded-full blur-[50px] opacity-20 group-hover:opacity-30 transition-opacity"></div>
+                    <div class="flex justify-between items-start mb-4 relative z-10">
+                        <div>
+                            <p class="text-[11px] font-bold text-red-400 uppercase tracking-wider">Error Rate API</p>
+                            <h3 class="text-3xl font-black text-white mt-1">0.0%</h3>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-red-950/50 border border-red-500/30 flex items-center justify-center">
+                            <i class="ph ph-warning-octagon text-xl text-red-500"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-green-400 flex items-center gap-1 relative z-10"><i class="ph-bold ph-trend-down"></i> Stabil setelah patch</p>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-bold text-white">Aktivitas Render AI (Simulasi Historis)</h3>
+                    </div>
+                    <div class="h-[300px] w-full">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="glass-panel p-6 rounded-2xl flex flex-col">
+                    <h3 class="text-lg font-bold text-white mb-6">Distribusi Fitur</h3>
+                    <div class="flex-1 flex items-center justify-center relative">
+                        <canvas id="doughnutChart"></canvas>
+                        <div class="absolute flex flex-col items-center pointer-events-none">
+                            <span class="text-2xl font-black text-white">4</span>
+                            <span class="text-[10px] text-gray-400 uppercase">Fitur</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW: MANAJEMEN KREATOR -->
+        <!-- ============================================== -->
+        <div id="view-users" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="glass-panel rounded-2xl overflow-hidden">
+                <div class="p-6 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between bg-black/40 gap-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Kelola Kreator & Keamanan</h3>
+                        <p class="text-xs text-gray-400 mt-1">Tangguhkan (kunci) akses, aktifkan, atau hapus data pengguna secara Live.</p>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-black/80 border-b border-white/5 text-[10px] uppercase tracking-wider text-gray-400">
+                                <th class="p-4 font-bold">Informasi Kreator</th>
+                                <th class="p-4 font-bold">Paket</th>
+                                <th class="p-4 font-bold">Sisa Poin</th>
+                                <th class="p-4 font-bold">Total Penggunaan</th>
+                                <th class="p-4 font-bold">Status</th>
+                                <th class="p-4 font-bold text-right">Aksi Admin</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm" id="usersTableBody">
+                            <tr><td colspan="6" class="p-8 text-center text-gray-500 flex flex-col items-center justify-center"><i class="ph ph-spinner-gap animate-spin text-2xl mb-2 text-red-500"></i> Loading Supabase Data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW: KALKULATOR BISNIS -->
+        <!-- ============================================== -->
+        <div id="view-calculator" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="glass-panel p-8 rounded-3xl mb-8 border border-green-900/40 relative overflow-hidden max-w-5xl mx-auto">
+                <div class="absolute top-0 right-0 w-96 h-96 bg-green-600/5 rounded-full blur-[100px] pointer-events-none"></div>
+                
+                <div class="flex items-center gap-4 mb-2 relative z-10">
+                    <div class="p-3 bg-green-900/30 rounded-xl border border-green-500/30 text-green-500">
+                        <i class="ph-fill ph-calculator text-2xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-bold text-white">Kalkulator Bisnis</h3>
+                        <p class="text-sm text-gray-400 mt-1">Simulasikan laba/rugi dan lihat harga aktual Token API Gemini 1.5 Flash.</p>
+                    </div>
+                </div>
+                
+                <hr class="border-white/10 my-8 relative z-10" />
+
+                <!-- Input Kontrol Utama -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10 relative z-10">
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/5">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Jumlah User</label>
+                        <div class="relative">
+                            <i class="ph ph-users absolute left-4 top-3 text-gray-400"></i>
+                            <input type="number" id="calc-users" value="100" oninput="calculateProfit()" class="w-full bg-black/80 border border-white/20 rounded-lg pl-10 pr-4 py-2.5 text-white font-bold focus:outline-none focus:border-green-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/5">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Nominal Pendaftaran (Rp)</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-2.5 text-gray-400 font-bold text-sm">Rp</span>
+                            <input type="number" id="calc-price" value="100000" oninput="calculateProfit()" class="w-full bg-black/80 border border-white/20 rounded-lg pl-10 pr-4 py-2.5 text-white font-bold focus:outline-none focus:border-green-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/5">
+                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3">Pemakaian Gambar Harian (Per User)</label>
+                        <div class="relative">
+                            <i class="ph ph-image absolute left-4 top-3 text-gray-400"></i>
+                            <input type="number" id="calc-daily-gens" value="10" oninput="calculateProfit()" class="w-full bg-black/80 border border-white/20 rounded-lg pl-10 pr-4 py-2.5 text-white font-bold focus:outline-none focus:border-green-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-blue-900/30">
+                        <label class="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-3">Jumlah Token (Beli Kuota)</label>
+                        <div class="relative">
+                            <i class="ph ph-database absolute left-4 top-3 text-gray-400"></i>
+                            <input type="number" id="calc-tokens" value="1000000" oninput="calculateProfit()" class="w-full bg-black/80 border border-blue-500/30 rounded-lg pl-10 pr-4 py-2.5 text-white font-bold focus:outline-none focus:border-blue-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-black/40 p-4 rounded-xl border border-blue-900/30">
+                        <label class="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-3">Harga per 1 Juta Token (Rp)</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-2.5 text-gray-400 font-bold text-sm">Rp</span>
+                            <input type="number" id="calc-price-per-million" value="5000" oninput="calculateProfit()" class="w-full bg-black/80 border border-blue-500/30 rounded-lg pl-10 pr-4 py-2.5 text-white font-bold focus:outline-none focus:border-blue-500 transition-colors">
+                        </div>
+                    </div>
+                    
+                    <div class="bg-blue-950/20 p-4 rounded-xl border border-blue-500/30 flex flex-col justify-center items-center text-center shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                        <p class="text-[10px] text-blue-300 uppercase tracking-wider font-bold mb-1">Harga Beli Kuota Token</p>
+                        <p class="text-3xl font-black text-blue-400 drop-shadow-[0_0_5px_rgba(59,130,246,0.5)]" id="display-total-token-cost">Rp 5.000</p>
+                        <p class="text-[9px] text-blue-300/50 mt-1">Biaya aktual ke Google API</p>
+                    </div>
+
+                </div>
+
+                <!-- Equalizer Slider Rentang Waktu -->
+                <div class="bg-[#110000] border border-white/10 p-6 rounded-2xl mb-8 relative z-10 shadow-inner">
+                    <div class="flex justify-between items-end mb-4">
+                        <div>
+                            <h4 class="text-white font-bold tracking-wider">Durasi Pemakaian Waktu (Equalizer)</h4>
+                            <p class="text-xs text-gray-400 mt-1">Geser untuk melihat pratinjau rugi/laba dari hari hingga 3 tahun.</p>
+                        </div>
+                        <div id="slider-label" class="bg-white/10 px-4 py-2 rounded-lg border border-white/20 text-white font-bold tracking-widest text-sm shadow-[0_0_10px_rgba(255,255,255,0.1)]">
+                            1 Bulan
+                        </div>
+                    </div>
+                    
+                    <div class="relative py-4">
+                        <!-- Nilai Slider 0 = 1 Hari, 1 = 1 Bulan, 2 = 6 Bulan, 3 = 1 Tahun, 4 = 2 Tahun, 5 = 3 Tahun -->
+                        <input type="range" id="calc-time-slider" min="0" max="5" step="1" value="1" oninput="calculateProfit()" class="w-full">
+                        <div class="flex justify-between text-[10px] font-bold text-gray-500 uppercase mt-4">
+                            <span>1 Hari</span>
+                            <span>1 Bulan</span>
+                            <span>6 Bulan</span>
+                            <span>1 Tahun</span>
+                            <span>2 Tahun</span>
+                            <span>3 Tahun</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Output Pratinjau Raksasa -->
+                <div class="bg-black/60 border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] rounded-3xl p-8 flex flex-col items-center relative overflow-hidden text-center z-10">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span id="profit-status" class="text-xs font-bold px-3 py-1 rounded bg-green-900/50 text-green-400 border border-green-500/30 uppercase tracking-widest">PROFIT / UNTUNG</span>
+                    </div>
+                    <h3 id="preview-title" class="text-gray-400 text-sm font-bold uppercase tracking-widest mt-2 mb-4">Pratinjau Keuntungan (1 Bulan)</h3>
+                    
+                    <h1 id="res-dyn-profit" class="text-5xl lg:text-7xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,0.6)] mb-8 transition-all duration-300">
+                        Rp 0
+                    </h1>
+
+                    <div class="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 border-t border-white/10 pt-8 mt-2">
+                        <div class="bg-[#050000] p-4 rounded-xl border border-white/5 relative overflow-hidden group">
+                            <div class="absolute top-0 right-0 w-16 h-16 bg-blue-600/10 rounded-full blur-[20px] pointer-events-none"></div>
+                            <p class="text-[10px] text-blue-300 uppercase font-bold tracking-wider mb-1">Jatah Gambar (1 User)</p>
+                            <p class="text-xl font-bold text-blue-400 font-mono" id="res-dyn-token-per-user">0</p>
+                            <p class="text-[9px] text-gray-500 mt-1 uppercase tracking-widest font-bold" id="res-dyn-token-per-user-detail">0 / Hari</p>
+                        </div>
+                        <div class="bg-[#050000] p-4 rounded-xl border border-white/5 relative overflow-hidden">
+                            <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Total Gambar (Semua User)</p>
+                            <p class="text-xl font-bold text-white font-mono" id="res-dyn-token">0</p>
+                            <p class="text-[9px] text-gray-500 mt-1 uppercase tracking-widest font-bold" id="res-dyn-token-detail">Dari 0 User</p>
+                        </div>
+                        <div class="bg-[#050000] p-4 rounded-xl border border-white/5">
+                            <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Pendapatan Masuk</p>
+                            <p class="text-xl font-bold text-green-400 font-mono" id="res-dyn-rev">Rp 0</p>
+                            <p class="text-[9px] text-gray-500 mt-1 uppercase tracking-widest font-bold">Sekali Bayar</p>
+                        </div>
+                        <div class="bg-[#050000] p-4 rounded-xl border border-red-900/20">
+                            <p class="text-[10px] text-red-500/70 uppercase font-bold tracking-wider mb-1">Beban Biaya API Google</p>
+                            <p class="text-xl font-bold text-red-400 font-mono" id="res-dyn-cost">- Rp 0</p>
+                            <p class="text-[9px] text-red-900/50 mt-1 uppercase tracking-widest font-bold">Total Pengeluaran</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Scripts -->
+    <script>
+        // ==========================================
+        // 1. SISTEM OTENTIKASI SEDERHANA (PASSWORD)
+        // ==========================================
+        const authOverlay = document.getElementById('auth-overlay');
+        const passInput = document.getElementById('admin-password');
+        const btnLogin = document.getElementById('btn-login');
+        const authError = document.getElementById('auth-error');
+
+        if (sessionStorage.getItem('admin_auth') === 'true') {
+            authOverlay.classList.add('hidden');
+            fetchUsers();
+        }
+
+        btnLogin.addEventListener('click', () => {
+            if (passInput.value === 'admin2015') {
+                sessionStorage.setItem('admin_auth', 'true');
+                authOverlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    authOverlay.classList.add('hidden');
+                    fetchUsers();
+                }, 500);
+            } else {
+                authError.classList.remove('hidden');
+                passInput.value = '';
+            }
+        });
+
+        passInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') btnLogin.click();
+        });
+
+        function logoutAdmin() {
+            sessionStorage.removeItem('admin_auth');
+            location.reload();
+        }
+
+        // ==========================================
+        // 2. KONFIGURASI SUPABASE
+        // ==========================================
+        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo'; 
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // Fetch Data Pengguna
+        async function fetchUsers() {
+            const { data, error } = await supabaseClient.from('users_public').select('*').order('created_at', { ascending: false });
+            if (!error && data) renderTable(data);
+
+            setInterval(async () => {
+                const res = await supabaseClient.from('users_public').select('*').order('created_at', { ascending: false });
+                if (!res.error && res.data) renderTable(res.data);
+            }, 5000);
+        }
+
+        // ==========================================
+        // 3. FUNGSI AKSI ADMIN (KUNCI, AKTIFKAN, HAPUS)
+        // ==========================================
+        window.toggleUserStatus = async function(id, currentStatus) {
+            const newStatus = currentStatus === 'Locked' ? 'Active' : 'Locked';
+            const confirmMsg = newStatus === 'Locked' 
+                ? "Kunci akses (suspend) user ini? Mereka tidak akan bisa render lagi." 
+                : "Aktifkan kembali akses user ini?";
+                
+            if (confirm(confirmMsg)) {
+                await supabaseClient.from('users_public').update({ status: newStatus }).eq('id', id);
+                fetchUsers();
+            }
+        }
+
+        window.deleteUser = async function(id) {
+            if (confirm("PERINGATAN: Anda yakin ingin MENGHAPUS data user ini secara permanen dari sistem?")) {
+                await supabaseClient.from('users_public').delete().eq('id', id);
+                fetchUsers();
+            }
+        }
+
+        function renderTable(users) {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '';
+            let totalGen = 0;
+
+            if(users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-gray-500">Belum ada kreator mendaftar.</td></tr>`;
+            } else {
+                users.forEach(u => {
+                    totalGen += (u.total_gen || 0);
+                    
+                    const isLocked = u.status === 'Locked';
+                    const statusDot = isLocked ? 'bg-red-600 shadow-[0_0_5px_#dc2626]' : 'bg-green-500 shadow-[0_0_5px_#22c55e]';
+                    const statusText = isLocked ? 'Terkunci' : 'Aktif';
+                    const tierColor = u.tier === 'Pro' ? 'text-red-400 border-red-500/30 bg-red-950/30' : 'text-gray-400 border-gray-500/30 bg-gray-900/30';
+                    const pointColor = u.points < 50 ? 'text-orange-500 font-bold' : 'text-white font-medium';
+
+                    const statusBtnClass = isLocked 
+                        ? "bg-green-900/50 hover:bg-green-600 border-green-500/50 text-green-400 hover:text-white" 
+                        : "bg-orange-900/50 hover:bg-orange-600 border-orange-500/50 text-orange-400 hover:text-white";
+                    const statusBtnIcon = isLocked ? "ph-lock-key-open" : "ph-lock-key";
+                    const statusBtnText = isLocked ? "Aktifkan" : "Kunci";
+
+                    tbody.innerHTML += `
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors ${isLocked ? 'opacity-60' : ''}">
+                            <td class="p-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-[#110000] border border-white/10 flex items-center justify-center text-white font-bold text-xs uppercase">
+                                        ${(u.email || 'U').charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p class="text-white font-medium">${u.email}</p>
+                                        <p class="text-[10px] text-gray-500 font-mono">${u.id ? u.id.substring(0,8) + '...' : '-'}</p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="p-4"><span class="px-2 py-1 rounded text-[10px] font-bold border uppercase tracking-wider ${tierColor}">${u.tier || 'Free'}</span></td>
+                            <td class="p-4"><div class="flex items-center gap-1.5"><i class="ph-fill ph-coin text-red-500"></i><span class="${pointColor} font-mono">${u.points || 0}</span></div></td>
+                            <td class="p-4 text-gray-300 font-mono text-sm">${u.total_gen || 0} <span class="text-[10px] text-gray-500">kali</span></td>
+                            <td class="p-4"><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${statusDot}"></span><span class="text-gray-300 text-xs">${statusText}</span></div></td>
+                            <td class="p-4 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <button onclick="toggleUserStatus('${u.id}', '${u.status}')" title="${statusBtnText} Akses User" class="${statusBtnClass} px-3 py-1.5 rounded-lg text-xs font-bold transition-all border flex items-center gap-1">
+                                        <i class="ph ${statusBtnIcon}"></i> ${statusBtnText}
+                                    </button>
+                                    <button onclick="deleteUser('${u.id}')" title="Hapus User Permanen" class="bg-red-950/50 hover:bg-red-600 border-red-900/50 text-red-500 hover:text-white px-2 py-1.5 rounded-lg text-xs transition-all border flex items-center">
+                                        <i class="ph ph-trash text-sm"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            document.getElementById('dash-total-users').innerText = users.length.toLocaleString();
+            document.getElementById('dash-total-gen').innerText = totalGen.toLocaleString();
+        }
+
+        // ==========================================
+        // 4. NAVIGASI & KALKULATOR BISNIS
+        // ==========================================
+        window.switchView = function(viewName) {
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('active', 'text-white');
+                el.classList.add('text-gray-400');
+            });
+            const activeNav = document.getElementById('nav-' + viewName);
+            if(activeNav) {
+                activeNav.classList.add('active');
+                activeNav.classList.remove('text-gray-400');
+            }
+
+            document.getElementById('view-dashboard').classList.add('view-hidden');
+            document.getElementById('view-users').classList.add('view-hidden');
+            document.getElementById('view-calculator').classList.add('view-hidden');
+            
+            document.getElementById('view-' + viewName).classList.remove('view-hidden');
+
+            const headerTitle = document.getElementById('header-title');
+            const headerDesc = document.getElementById('header-desc');
+            
+            if(viewName === 'dashboard') {
+                headerTitle.innerText = "Dashboard Overview";
+                headerDesc.innerText = "Memantau aktivitas AI dan beban server secara Real-Time.";
+            } else if (viewName === 'users') {
+                headerTitle.innerText = "Manajemen Kreator";
+                headerDesc.innerText = "Kelola pengguna, tangguhkan akses, dan amankan sistem.";
+            } else if (viewName === 'calculator') {
+                headerTitle.innerText = "Kalkulator Bisnis";
+                headerDesc.innerText = "Kalkulator dinamis menggunakan slide bar equalizer.";
+            }
+        };
+
+        const formatRupiah = (num) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+        };
+
+        window.calculateProfit = function() {
+            const users = parseFloat(document.getElementById('calc-users').value) || 0;
+            const price = parseFloat(document.getElementById('calc-price').value) || 0;
+            const dailyImages = parseFloat(document.getElementById('calc-daily-gens').value) || 0;
+            const targetTokens = parseFloat(document.getElementById('calc-tokens').value) || 0;
+            const pricePerMillion = parseFloat(document.getElementById('calc-price-per-million').value) || 0;
+            const sliderVal = parseInt(document.getElementById('calc-time-slider').value) || 0;
+
+            // Update UI Harga Beli Token
+            const totalTokenCost = (targetTokens / 1000000) * pricePerMillion;
+            document.getElementById('display-total-token-cost').innerText = formatRupiah(totalTokenCost);
+
+            // Hitung harga per 1 token / 1 gambar
+            const costPerToken = pricePerMillion / 1000000;
+
+            // Mapping Slider (0 s/d 5) ke hitungan hari riil
+            const daysMap = [1, 30, 180, 365, 730, 1095];
+            const labelsMap = ["1 Hari", "1 Bulan", "6 Bulan", "1 Tahun", "2 Tahun", "3 Tahun"];
+
+            const days = daysMap[sliderVal];
+            const timeText = labelsMap[sliderVal];
+
+            // Update Label Teks Slider
+            document.getElementById('slider-label').innerText = timeText;
+            document.getElementById('preview-title').innerText = `Pratinjau Keuntungan (${timeText})`;
+
+            // 1. Revenue (Uang Pendaftaran - Diasumsikan "Sekali Bayar")
+            const totalRevenue = users * price;
+
+            // 2. Cost (Berdasarkan jumlah hari yang bergeser di Slider)
+            const tokensUsedTotal = users * dailyImages * days;
+            const costTotal = tokensUsedTotal * costPerToken;
+            
+            // 3. Profit
+            const profitTotal = totalRevenue - costTotal;
+
+            // Update UI DOM
+            const tokensPerUserTotal = dailyImages * days;
+            
+            document.getElementById('res-dyn-token-per-user').innerText = tokensPerUserTotal.toLocaleString('id-ID');
+            document.getElementById('res-dyn-token-per-user-detail').innerText = `${dailyImages.toLocaleString('id-ID')} / Hari`;
+            
+            document.getElementById('res-dyn-token').innerText = tokensUsedTotal.toLocaleString('id-ID');
+            document.getElementById('res-dyn-token-detail').innerText = `Dari ${users.toLocaleString('id-ID')} User`;
+            
+            document.getElementById('res-dyn-rev').innerText = formatRupiah(totalRevenue);
+            document.getElementById('res-dyn-cost').innerText = "- " + formatRupiah(costTotal);
+            
+            const profitEl = document.getElementById('res-dyn-profit');
+            const statusEl = document.getElementById('profit-status');
+            
+            profitEl.innerText = formatRupiah(profitTotal);
+            
+            if (profitTotal < 0) {
+                // RUGI
+                profitEl.className = "text-5xl lg:text-7xl font-black text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)] mb-8 transition-all duration-300";
+                statusEl.innerText = "RUGI / BONCOS";
+                statusEl.className = "text-xs font-bold px-3 py-1 rounded bg-red-900/50 text-red-400 border border-red-500/30 uppercase tracking-widest";
+            } else {
+                // UNTUNG
+                profitEl.className = "text-5xl lg:text-7xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,0.6)] mb-8 transition-all duration-300";
+                statusEl.innerText = "PROFIT / UNTUNG";
+                statusEl.className = "text-xs font-bold px-3 py-1 rounded bg-green-900/50 text-green-400 border border-green-500/30 uppercase tracking-widest";
+            }
+        };
+        
+        // Panggil saat load awal
+        window.calculateProfit();
+
+        // 5. Clock Logic
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
+        }, 1000);
+
+        // 6. Chart.js Setup (Visual)
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+        const ctxMain = document.getElementById('mainChart').getContext('2d');
+        const gradient = ctxMain.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(220, 38, 38, 0.5)');
+        gradient.addColorStop(1, 'rgba(220, 38, 38, 0)');
+
+        new Chart(ctxMain, {
+            type: 'line',
+            data: {
+                labels: ['1', '5', '10', '15', '20', '25', '30'],
+                datasets: [{
+                    label: 'Gambar Di-Render',
+                    data: [120, 300, 250, 480, 420, 650, 890],
+                    borderColor: '#dc2626',
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#000',
+                    pointBorderColor: '#dc2626',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false } }, y: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, beginAtZero: true } } }
+        });
+
+        const ctxDoughnut = document.getElementById('doughnutChart').getContext('2d');
+        new Chart(ctxDoughnut, {
+            type: 'doughnut',
+            data: {
+                labels: ['Affiliate Studio', 'TikTok Factory', 'Prompt Finder', 'Algo Prompt'],
+                datasets: [{
+                    data: [45, 30, 15, 10],
+                    backgroundColor: ['#dc2626', '#991b1b', '#4a0404', '#1f2937'],
+                    borderWidth: 0, hoverOffset: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' } } } }
+        });
+    </script>
+</body>
+</html>
