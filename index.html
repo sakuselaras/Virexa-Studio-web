@@ -29,7 +29,6 @@
         .btn-primary:hover { background: #b91c1c; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(220, 38, 38, 0.5); }
         .drop-shadow-glow { filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.6)); }
         
-        /* Tombol Upload Sesuai Harapan Anda (Merah & Abu) */
         .file-input-red::-webkit-file-upload-button {
             background: #dc2626; color: white; border: none; padding: 10px 24px; border-radius: 20px; font-weight: 800; cursor: pointer; margin-right: 10px; font-size: 11px;
         }
@@ -44,9 +43,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // ============================================================
-        // 1. KONFIGURASI (KUNCI ANDA)
-        // ============================================================
         const BACKEND_URL = "https://virexa-backend.vercel.app"; 
         const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
@@ -56,7 +52,6 @@
             clientSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
 
-        // --- GATEWAY AI (KE BACKEND VERCEL) ---
         const AI = {
             call: async (endpoint, payload) => {
                 const res = await fetch(`${BACKEND_URL}/api/${endpoint}`, {
@@ -69,15 +64,28 @@
             }
         };
 
-        const fileToBase64 = (file) => new Promise((resolve) => {
+        // HELPER: Kompresi Gambar agar tidak error 400 (Payload Too Large)
+        const processImage = (file) => new Promise((resolve) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 1024;
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                    resolve(dataUrl.split(',')[1]);
+                };
+            };
         });
 
-        // ============================================================
-        // 2. APLIKASI UTAMA (LOGIKA 100% UTUH)
-        // ============================================================
         function App() {
             const [user, setUser] = useState(null);
             const [activeTab, setActiveTab] = useState('home');
@@ -88,16 +96,13 @@
                     setLoading(false);
                     return;
                 }
-                
                 clientSupabase.auth.getSession().then(({ data: { session } }) => {
                     setUser(session?.user ?? null);
                     setLoading(false);
                 });
-
                 const { data: { subscription } } = clientSupabase.auth.onAuthStateChange((_event, session) => {
                     setUser(session?.user ?? null);
                 });
-
                 return () => subscription.unsubscribe();
             }, []);
 
@@ -108,19 +113,15 @@
                 </div>
             );
 
-            // Jika belum login, tampilkan pintu (Auth)
             if (!user) return <AuthScreen supabase={clientSupabase} />;
 
-            // Jika sudah masuk, tampilkan isi rumah (Studio)
             return (
                 <div className="flex h-screen overflow-hidden bg-black text-gray-200">
-                    {/* SIDEBAR */}
                     <aside className="w-80 glass-sidebar flex flex-col p-8 shrink-0 relative">
                         <div className="flex items-center gap-3 mb-16 relative z-10">
                             <i className="ph-fill ph-sparkle text-5xl text-red-600 drop-shadow-glow"></i>
                             <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Virexa</h1>
                         </div>
-                        
                         <nav className="flex-1 space-y-3 relative z-10">
                             <NavBtn id="home" icon="ph-house" label="Dashboard" active={activeTab} onClick={setActiveTab} />
                             <div className="pt-10 pb-4 text-[11px] font-black text-gray-600 uppercase tracking-[0.3em] px-4">Pro Tools</div>
@@ -129,7 +130,6 @@
                             <NavBtn id="finder" icon="ph-magnifying-glass" label="Prompt Finder" active={activeTab} onClick={setActiveTab} />
                             <NavBtn id="algo" icon="ph-wand" label="TikTok Algo Prompt" active={activeTab} onClick={setActiveTab} />
                         </nav>
-
                         <div className="pt-10 border-t border-white/10 mt-auto relative z-10">
                             <div className="bg-red-600/5 p-5 rounded-3xl mb-6 border border-red-600/20">
                                 <p className="text-[10px] text-gray-500 font-bold uppercase truncate mb-1">{user.email}</p>
@@ -139,7 +139,6 @@
                         </div>
                     </aside>
 
-                    {/* MAIN CONTENT AREA */}
                     <main className="flex-1 overflow-y-auto p-12 bg-[#050000]">
                         <div className="max-w-6xl mx-auto">
                             {activeTab === 'home' && <HomeView setActiveTab={setActiveTab} user={user} />}
@@ -161,8 +160,6 @@
                 </button>
             );
         }
-
-        // --- VIEWS ---
 
         function HomeView({ setActiveTab, user }) {
             return (
@@ -204,8 +201,10 @@
                 if (!prodFile || !modelFile) return alert("PENTING: Unggah foto PRODUK dan wajah MODEL terlebih dahulu!");
                 setLoading(true); setResults([]);
                 try {
-                    const prodB64 = await fileToBase64(prodFile);
-                    const modelB64 = await fileToBase64(modelFile);
+                    setProg("Mempersiapkan data (Kompresi)...");
+                    // PROSES KOMPRESI DISINI
+                    const prodB64 = await processImage(prodFile);
+                    const modelB64 = await processImage(modelFile);
                     
                     const poses = [
                         "Walking forward dynamically in a luxury studio", "Holding the product smiling",
@@ -227,7 +226,9 @@
                         });
                         setResults(prev => [...prev, res.image]);
                     }
-                } catch (e) { alert(e.message); }
+                } catch (e) { 
+                    alert("Error: " + e.message + ". Pastikan foto tidak terlalu buram."); 
+                }
                 setLoading(false);
             };
 
@@ -263,7 +264,7 @@
                             </button>
                         </div>
                         <div className="grid grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-4">
-                            {results.map((img, i) => <img key={i} src={img} className="rounded-3xl border border-white/10 hover:scale-105 transition-transform" />)}
+                            {results.map((img, i) => <img key={i} src={img} className="rounded-3xl border border-white/10 hover:scale-105 transition-transform shadow-2xl" />)}
                             {loading && <div className="col-span-2 flex flex-col items-center justify-center py-24 gap-4"><i className="ph ph-spinner animate-spin text-5xl text-red-600"></i><p className="text-gray-500 text-xs font-black animate-pulse uppercase">AI Rendering Process...</p></div>}
                         </div>
                     </div>
@@ -332,7 +333,7 @@
                 if (!file) return;
                 setLoading(true);
                 try {
-                    const b64 = await fileToBase64(file);
+                    const b64 = await processImage(file);
                     const data = await AI.call('generate-text', { prompt: "Extract the exact AI image generation prompt from this image in detail and English. Include lighting, camera lens, and style.", base64Image: b64 });
                     setRes(data.text);
                 } catch (e) { alert("Gagal menganalisis"); }
