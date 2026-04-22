@@ -37,19 +37,19 @@
         const { useState, useEffect, useRef } = React;
 
         // ============================================================
-        // 1. CONFIGURATION
+        // 1. KONFIGURASI (GANTI BACKEND_URL DENGAN URL VERCEL ANDA)
         // ============================================================
         const BACKEND_URL = "https://virexa-backend.vercel.app"; 
         const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
         
-        // PENTING: Nama unik agar tidak redeclare
-        var virexaAuth = null;
+        // PENTING: Nama unik agar tidak redeclare variabel global supabase
+        var virexaMasterAuth = null;
         if (window.supabase) {
-            virexaAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            virexaMasterAuth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         }
 
-        // --- API GATEWAY ---
+        // --- API GATEWAY KE BACKEND VERCEL ---
         const AI = {
             call: async (endpoint, payload) => {
                 const res = await fetch(`${BACKEND_URL}/api/${endpoint}`, {
@@ -57,7 +57,7 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if (!data.success) throw new Error(data.error || "Gagal menghubungi server AI");
+                if (!data.success) throw new Error(data.error || "Gagal menghubungi AI");
                 return data;
             }
         };
@@ -69,7 +69,7 @@
         });
 
         // ============================================================
-        // 2. MAIN APPLICATION (RESTORED FEATURES)
+        // 2. KOMPONEN UTAMA (SISTEM LOGIN + STUDIO LENGKAP)
         // ============================================================
         function App() {
             const [user, setUser] = useState(null);
@@ -77,12 +77,14 @@
             const [loading, setLoading] = useState(true);
 
             useEffect(() => {
-                if (!virexaAuth) return;
-                virexaAuth.auth.getSession().then(({ data: { session } }) => {
+                if (!virexaMasterAuth) return;
+                // Cek sesi login saat ini
+                virexaMasterAuth.auth.getSession().then(({ data: { session } }) => {
                     setUser(session?.user ?? null);
                     setLoading(false);
                 });
-                const { data: { subscription } } = virexaAuth.auth.onAuthStateChange((_event, session) => {
+                // Pantau perubahan status login
+                const { data: { subscription } } = virexaMasterAuth.auth.onAuthStateChange((_event, session) => {
                     setUser(session?.user ?? null);
                 });
                 return () => subscription.unsubscribe();
@@ -91,26 +93,26 @@
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center bg-black">
                     <i className="ph ph-spinner-gap animate-spin text-6xl text-red-600"></i>
-                    <p className="text-gray-500 mt-8 font-black tracking-[0.4em] uppercase text-xs animate-pulse">Virexa Engine Restoring...</p>
+                    <p className="text-gray-500 mt-8 font-black tracking-[0.4em] uppercase text-xs">Virexa Engine Loading...</p>
                 </div>
             );
 
-            // Tampilkan Layar Login jika user belum masuk
+            // JIKA BELUM LOGIN: Tampilkan Layar Login
             if (!user) return <AuthScreen />;
 
-            // TAMPILAN FULL STUDIO SETELAH LOGIN
+            // JIKA SUDAH LOGIN: Tampilkan Seluruh Fitur Studio Secara Utuh
             return (
                 <div className="flex h-screen overflow-hidden bg-black text-gray-200">
-                    {/* SIDEBAR NAVIGASI */}
+                    {/* SIDEBAR */}
                     <aside className="w-80 glass-sidebar flex flex-col p-8 shrink-0 relative">
                         <div className="flex items-center gap-3 mb-16 relative z-10">
                             <i className="ph-fill ph-sparkle text-5xl text-red-600 drop-shadow-glow"></i>
-                            <h1 className="text-3xl font-black tracking-tighter text-white">VIREXA</h1>
+                            <h1 className="text-3xl font-black tracking-tighter text-white uppercase">Virexa</h1>
                         </div>
                         
                         <nav className="flex-1 space-y-3 relative z-10">
                             <NavBtn id="home" icon="ph-house" label="Dashboard" active={activeTab} onClick={setActiveTab} />
-                            <div className="pt-10 pb-4 text-[11px] font-black text-gray-600 uppercase tracking-[0.3em] px-4">Studio Tools</div>
+                            <div className="pt-10 pb-4 text-[11px] font-black text-gray-600 uppercase tracking-[0.3em] px-4">Pro Tools</div>
                             <NavBtn id="affiliate" icon="ph-image" label="Affiliate Studio" active={activeTab} onClick={setActiveTab} />
                             <NavBtn id="tiktok" icon="ph-tiktok-logo" label="TikTok Factory" active={activeTab} onClick={setActiveTab} />
                             <NavBtn id="finder" icon="ph-magnifying-glass" label="Prompt Finder" active={activeTab} onClick={setActiveTab} />
@@ -118,15 +120,15 @@
                         </nav>
 
                         <div className="pt-10 border-t border-white/10 mt-auto relative z-10">
-                            <div className="bg-red-600/5 p-5 rounded-3xl mb-6 border border-red-600/20">
+                            <div className="bg-red-600/5 p-5 rounded-3xl mb-6 border border-red-600/20 overflow-hidden">
                                 <p className="text-[10px] text-gray-500 font-bold uppercase truncate mb-1">{user.email}</p>
-                                <p className="text-[10px] text-red-500 font-black tracking-widest">PRO CREATOR ACCESS</p>
+                                <p className="text-[10px] text-red-500 font-black tracking-widest">PREMIUM ACCESS</p>
                             </div>
-                            <button onClick={() => virexaAuth.auth.signOut()} className="w-full py-4 rounded-2xl bg-red-950/30 text-red-500 text-xs font-black hover:bg-red-600 hover:text-white transition-all shadow-lg">KELUAR SISTEM</button>
+                            <button onClick={() => virexaMasterAuth.auth.signOut()} className="w-full py-4 rounded-2xl bg-red-950/30 text-red-500 text-xs font-black hover:bg-red-600 hover:text-white transition-all shadow-lg">KELUAR</button>
                         </div>
                     </aside>
 
-                    {/* CONTENT AREA */}
+                    {/* MAIN CONTENT AREA */}
                     <main className="flex-1 overflow-y-auto p-12 bg-[#050000]">
                         <div className="max-w-6xl mx-auto">
                             {activeTab === 'home' && <HomeView setActiveTab={setActiveTab} user={user} />}
@@ -149,21 +151,20 @@
             );
         }
 
-        // --- SUB-VIEWS ---
+        // --- VIEWS ---
 
         function HomeView({ setActiveTab, user }) {
             return (
                 <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
                     <header>
-                        <p className="text-red-500 font-black tracking-[0.5em] text-xs uppercase mb-4">Portal Dashboard</p>
-                        <h2 className="text-6xl font-black text-white leading-[1.1] tracking-tighter">Selamat Datang,<br/><span className="text-red-600 underline decoration-red-900/50">{user.email.split('@')[0]}</span></h2>
-                        <p className="text-gray-400 mt-6 text-xl font-medium max-w-2xl">Rumah bagi kreativitas tanpa batas. Semua tool favorit Anda sudah siap di sebelah kiri.</p>
+                        <h2 className="text-6xl font-black text-white leading-[1.1] tracking-tighter">Halo,<br/><span className="text-red-600 underline decoration-red-900/50">{user.email.split('@')[0]}</span>!</h2>
+                        <p className="text-gray-400 mt-6 text-xl font-medium max-w-2xl italic">"Rumah Kreativitas Anda Kembali Berdiri Megah."</p>
                     </header>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                         <QuickCard title="Affiliate" desc="8 Pose Produk & Wajah Model" icon="ph-image" onClick={() => setActiveTab('affiliate')} />
-                        <QuickCard title="Factory" desc="3 Scene Naskah Video Viral" icon="ph-tiktok-logo" onClick={() => setActiveTab('tiktok')} />
-                        <QuickCard title="Finder" desc="Bedah Prompt dari Gambar" icon="ph-magnifying-glass" onClick={() => setActiveTab('finder')} />
-                        <QuickCard title="Algo" desc="Naskah FYP Edukasi Baru" icon="ph-wand" onClick={() => setActiveTab('algo')} />
+                        <QuickCard title="Factory" desc="Naskah Video 3 Scene Viral" icon="ph-tiktok-logo" onClick={() => setActiveTab('tiktok')} />
+                        <QuickCard title="Finder" desc="Bedah Rahasia Prompt Gambar" icon="ph-magnifying-glass" onClick={() => setActiveTab('finder')} />
+                        <QuickCard title="Algo" desc="Formula Naskah FYP Edukasi" icon="ph-wand" onClick={() => setActiveTab('algo')} />
                     </div>
                 </div>
             );
@@ -209,12 +210,12 @@
                     for(let i=0; i<poses.length; i++) {
                         setProg(`Merender Pose ${i+1} dari 8...`);
                         
-                        // Sisipkan Nama Toko ke 2 pose secara acak
-                        const addBranding = (i === 2 || i === 5 && storeName) ? 
-                            `. The text '${storeName.toUpperCase()}' is clearly visible in the background as an aesthetic neon sign.` : '';
+                        // Sisipkan Nama Toko ke pose secara acak sebagai Neon Sign
+                        const brandingText = (i === 2 || i === 5 && storeName) ? 
+                            `. Mandatory aesthetic glowing neon sign saying '${storeName.toUpperCase()}' in background.` : '';
 
                         const res = await AI.call('edit-image', { 
-                            prompt: `[RATIO 9:16] MANDATORY PORTRAIT. Combine these 2 images. Reference 1: The Product. Reference 2: The Model's Face and Identity. Generate a high-end commercial shot. Pose: ${poses[i]}${addBranding}. KEEP PRODUCT DETAILS 100% ORIGINAL.`, 
+                            prompt: `[RATIO 9:16 MANDATORY] Generate a high-end commercial shot. Combine Reference 1 (Product) and Reference 2 (Model Face). Pose: ${poses[i]}${brandingText}. KEEP PRODUCT DETAILS AND MODEL FACE IDENTITY 100% ORIGINAL.`, 
                             base64Images: [prodB64, modelB64], 
                             ratio: "9:16" 
                         });
@@ -225,51 +226,39 @@
             };
 
             return (
-                <div className="space-y-10 animate-in fade-in duration-500">
-                    <div className="flex justify-between items-end">
-                        <div>
-                            <h3 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                                <i className="ph ph-image text-red-600"></i> Affiliate Studio
-                            </h3>
-                            <p className="text-gray-400 mt-2 font-bold uppercase tracking-widest text-[10px]">Render 8 Pose Komersial Portrait 9:16</p>
-                        </div>
-                    </div>
-                    
+                <div className="space-y-10 animate-in fade-in">
+                    <h3 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
+                        <i className="ph ph-image text-red-600"></i> Affiliate Studio
+                    </h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 bg-white/5 p-12 rounded-[50px] border border-white/10 shadow-2xl">
                         <div className="space-y-8">
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="space-y-3">
-                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em]">1. Foto Produk</label>
-                                    <div className="relative group overflow-hidden rounded-3xl border-2 border-dashed border-white/10 hover:border-red-600/50 transition-all aspect-square flex items-center justify-center bg-black/40">
-                                        {prodFile ? <img src={URL.createObjectURL(prodFile)} className="w-full h-full object-cover" /> : <i className="ph ph-plus text-2xl text-gray-700"></i>}
-                                        <input type="file" onChange={e => setProdFile(e.target.files[0])} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                    </div>
+                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em]">1. Foto Produk Utama</label>
+                                    <input type="file" onChange={e => setProdFile(e.target.files[0])} className="block w-full text-[10px] text-gray-400 file:bg-red-600 file:text-white file:rounded-full file:px-4 file:py-2 file:border-0 file:font-black cursor-pointer" />
+                                    {prodFile && <p className="text-[9px] text-green-500 font-bold">Produk Siap.</p>}
                                 </div>
                                 <div className="space-y-3">
-                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em]">2. Wajah Model</label>
-                                    <div className="relative group overflow-hidden rounded-3xl border-2 border-dashed border-white/10 hover:border-red-600/50 transition-all aspect-square flex items-center justify-center bg-black/40">
-                                        {modelFile ? <img src={URL.createObjectURL(modelFile)} className="w-full h-full object-cover" /> : <i className="ph ph-user text-2xl text-gray-700"></i>}
-                                        <input type="file" onChange={e => setModelFile(e.target.files[0])} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                    </div>
+                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em]">2. Wajah Model (Identity)</label>
+                                    <input type="file" onChange={e => setModelFile(e.target.files[0])} className="block w-full text-[10px] text-gray-400 file:bg-white/10 file:text-white file:rounded-full file:px-4 file:py-2 file:border-0 file:font-black cursor-pointer" />
+                                    {modelFile && <p className="text-[9px] text-green-500 font-bold">Wajah Terkunci.</p>}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4">3. Nama Toko (Neon Latar)</label>
-                                <input value={storeName} onChange={e => setStoreName(e.target.value)} placeholder="Cth: VIREXA FASHION" className="w-full input-dark rounded-2xl p-5 text-sm font-bold uppercase" />
+                                <label className="block text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">3. Nama Toko (Opsional)</label>
+                                <input value={storeName} onChange={e => setStoreName(e.target.value)} placeholder="Cth: VIREXA FASHION" className="w-full input-dark rounded-[24px] p-5 text-sm font-bold uppercase" />
                             </div>
                             <div>
-                                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-[0.3em] mb-4">4. Instruksi Gaya Tambahan</label>
-                                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full input-dark rounded-3xl p-6 text-sm font-medium" rows="4" placeholder="Misal: 'Tema warna pastel, suasana ceria...'"></textarea>
+                                <label className="block text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">4. Instruksi Gaya</label>
+                                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} className="w-full input-dark rounded-[24px] p-6 text-sm" rows="4" placeholder="Misal: 'Tema warna elegan, nuansa cerah...'"></textarea>
                             </div>
-                            <button onClick={handleGen} disabled={loading} className="w-full btn-primary py-6 rounded-3xl font-black text-white text-lg tracking-tighter uppercase disabled:opacity-50">
-                                {loading ? <span className="flex items-center justify-center gap-3"><i className="ph ph-spinner animate-spin"></i> {prog}</span> : "Generate 8 Pose Komersial"}
+                            <button onClick={handleGen} disabled={loading} className="w-full btn-primary py-5 rounded-[24px] font-black text-white text-lg disabled:opacity-50 transition-all uppercase tracking-tighter shadow-2xl">
+                                {loading ? prog : "Generate 8 Pose Komersial (9:16)"}
                             </button>
                         </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 max-h-[700px] overflow-y-auto pr-4 scroll-smooth">
-                            {results.map((img, i) => <img key={i} src={img} className="rounded-[32px] border border-white/10 hover:scale-105 transition-transform shadow-2xl" />)}
-                            {loading && <div className="col-span-2 flex flex-col items-center justify-center py-32 gap-6"><i className="ph ph-spinner animate-spin text-6xl text-red-600"></i><p className="text-gray-500 text-xs font-black animate-pulse tracking-[0.3em] uppercase">AI is Creating Magic...</p></div>}
-                            {!loading && results.length === 0 && <div className="col-span-2 flex flex-col items-center justify-center py-40 opacity-10"><i className="ph ph-images-square text-8xl mb-6"></i><p className="text-xs font-black uppercase tracking-[0.4em]">Hasil Akan Muncul Di Sini</p></div>}
+                        <div className="grid grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-4">
+                            {results.map((img, i) => <img key={i} src={img} className="rounded-3xl border border-white/10 hover:scale-105 transition-transform" />)}
+                            {loading && <div className="col-span-2 flex flex-col items-center justify-center py-24 gap-4"><i className="ph ph-spinner animate-spin text-5xl text-red-600"></i><p className="text-gray-500 text-xs font-black animate-pulse uppercase">AI Rendering Process...</p></div>}
                         </div>
                     </div>
                 </div>
@@ -286,11 +275,11 @@
                 setLoading(true); setData(null);
                 try {
                     const res = await AI.call('generate-text', { 
-                        prompt: `Buatkan naskah TikTok 3 scene viral (Hook, Value, CTA) untuk produk: ${name}. JSON format: {"judul":"...","caption":"...","tagar":"#... #...","scenes":[{"visual":"...","dialog":"..."}]}` 
+                        prompt: `Buatkan naskah TikTok 3 scene viral untuk: ${name}. Gunakan format JSON murni: {"judul":"...","caption":"...","tagar":"...","scenes":[{"visual":"...","dialog":"..."}]}` 
                     });
-                    const parsed = JSON.parse(res.text.replace(/```json|```/g, '').trim());
-                    setData(parsed);
-                } catch (e) { alert("Format naskah error, coba lagi."); }
+                    const cleanRes = res.text.replace(/```json|```/g, '').trim();
+                    setData(JSON.parse(cleanRes));
+                } catch (e) { alert("Gagal menyusun kampanye"); }
                 setLoading(false);
             };
 
@@ -299,29 +288,26 @@
                     <h3 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
                         <i className="ph ph-tiktok-logo text-red-600"></i> TikTok Factory
                     </h3>
-                    <div className="bg-white/5 p-12 rounded-[50px] border border-white/10 max-w-3xl shadow-2xl">
-                        <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-6">Nama Produk / Topik Campaign</label>
-                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Misal: Skincare Pencerah Korea" className="w-full input-dark p-6 rounded-3xl mb-8 text-xl font-bold" />
-                        <button onClick={handleGen} className="w-full btn-primary py-6 rounded-3xl font-black text-lg transition-all uppercase tracking-tighter">
-                            {loading ? "Menganalisis Tren FYP..." : "Bangun Naskah Video Viral"}
+                    <div className="bg-white/5 p-12 rounded-[48px] border border-white/10 max-w-3xl shadow-2xl">
+                        <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-4">Nama Produk / Merek</label>
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="Misal: Serum Pencerah" className="w-full input-dark p-6 rounded-3xl mb-8 text-xl font-bold" />
+                        <button onClick={handleGen} className="w-full btn-primary py-6 rounded-3xl font-black text-lg transition-all">
+                            {loading ? "Menyusun Strategi Viral..." : "Bangun Naskah Kampanye"}
                         </button>
                     </div>
                     {data && (
-                        <div className="space-y-10 mt-12 animate-in slide-in-from-bottom-8">
-                            <div className="glass-card p-10 rounded-[40px] border-red-900/20">
-                                <h4 className="text-red-500 font-black uppercase text-[10px] mb-3 tracking-[0.5em]">SEO Metadata</h4>
-                                <h5 className="text-3xl font-bold text-white mb-4 tracking-tight">{data.judul}</h5>
-                                <p className="text-gray-400 italic mb-6 leading-relaxed">"{data.caption}"</p>
-                                <p className="text-red-400 font-mono text-sm font-bold tracking-widest">{data.tagar}</p>
+                        <div className="space-y-8 mt-12 animate-in slide-in-from-bottom-5">
+                            <div className="glass-card p-10 rounded-[40px]">
+                                <h5 className="text-2xl font-bold text-white mb-4">{data.judul}</h5>
+                                <p className="text-gray-400 italic mb-4">{data.caption}</p>
+                                <p className="text-red-500 font-mono text-xs">{data.tagar}</p>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 {data.scenes.map((s, i) => (
-                                    <div key={i} className="glass-card p-8 rounded-[40px] border-white/5 relative overflow-hidden">
-                                        <div className="bg-red-600 text-[10px] font-black px-4 py-1.5 rounded-full w-fit mb-8 tracking-widest uppercase">SCENE {i+1}</div>
-                                        <p className="text-[10px] text-gray-500 mb-4 font-black uppercase tracking-widest">Arah Visual:</p>
-                                        <p className="text-sm text-gray-200 leading-relaxed mb-8 font-medium italic">{s.visual}</p>
-                                        <p className="text-[10px] text-gray-500 mb-4 font-black uppercase tracking-widest">Naskah Dialog:</p>
-                                        <p className="text-xl font-bold text-white leading-tight">"{s.dialog}"</p>
+                                    <div key={i} className="glass-card p-8 rounded-[32px]">
+                                        <div className="bg-red-600 text-[10px] font-black px-3 py-1 rounded-full w-fit mb-6 uppercase">SCENE {i+1}</div>
+                                        <p className="text-xs text-gray-400 mb-4 italic">Visual: {s.visual}</p>
+                                        <p className="text-white font-bold leading-relaxed">"{s.dialog}"</p>
                                     </div>
                                 ))}
                             </div>
@@ -341,32 +327,26 @@
                 setLoading(true);
                 try {
                     const b64 = await fileToBase64(file);
-                    const data = await AI.call('generate-text', { prompt: "Ekstrak prompt AI Image Generator (Main & Negative) paling detail dari gambar ini dalam Bahasa Inggris.", base64Image: b64 });
+                    const data = await AI.call('generate-text', { prompt: "Extract the exact AI image generation prompt from this image in detail and English.", base64Image: b64 });
                     setRes(data.text);
-                } catch (e) { alert("Gagal menganalisis gambar."); }
+                } catch (e) { alert("Gagal"); }
                 setLoading(false);
             };
 
             return (
-                <div className="space-y-10 animate-in fade-in">
-                    <h3 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                        <i className="ph ph-magnifying-glass text-red-600"></i> Prompt Finder
-                    </h3>
+                <div className="space-y-8 animate-in fade-in">
+                    <h3 className="text-3xl font-black text-white flex items-center gap-3 uppercase tracking-tighter"><i className="ph ph-magnifying-glass text-red-600"></i> Prompt Finder</h3>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                        <div className="glass-card p-12 rounded-[50px] flex flex-col items-center justify-center border-dashed border-2 border-white/10 hover:bg-white/5 transition-all cursor-pointer relative overflow-hidden aspect-video">
-                            <i className="ph ph-upload-simple text-6xl text-gray-600 mb-8"></i>
-                            <p className="text-gray-400 font-black uppercase text-xs tracking-[0.3em]">Unggah Gambar Referensi</p>
+                        <div className="glass-card p-12 rounded-[48px] flex flex-col items-center justify-center border-dashed border-2 border-white/10 relative overflow-hidden min-h-[300px]">
+                            <i className="ph ph-upload-simple text-6xl text-gray-700 mb-6"></i>
                             <input type="file" onChange={e => setFile(e.target.files[0])} className="absolute inset-0 opacity-0 cursor-pointer" />
-                            {file && <p className="mt-6 text-red-500 font-black text-xs uppercase tracking-widest">{file.name}</p>}
+                            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">{file ? file.name : "Klik & Unggah Gambar Referensi"}</p>
+                            <button onClick={handleAnalyze} disabled={loading || !file} className="mt-8 px-10 py-4 btn-primary rounded-2xl font-black text-white uppercase tracking-tighter">Bongkar Sekarang</button>
                         </div>
-                        <div className="bg-white/5 border border-white/10 p-12 rounded-[50px] min-h-[400px] flex flex-col shadow-inner">
-                            <label className="text-[10px] font-black text-red-500 uppercase tracking-[0.4em] mb-8 block">Hasil Bongkar Prompt</label>
-                            <div className="flex-1">
-                                <p className="text-gray-300 text-sm leading-loose whitespace-pre-wrap font-mono">{res || "Menunggu data analisis..."}</p>
-                            </div>
-                            <button onClick={handleAnalyze} disabled={loading || !file} className="w-full btn-primary py-5 rounded-2xl font-black mt-10 tracking-widest uppercase transition-all">
-                                {loading ? <i className="ph ph-spinner animate-spin text-2xl"></i> : "Bongkar Prompt Sekarang"}
-                            </button>
+                        <div className="bg-white/5 border border-white/10 p-12 rounded-[48px] shadow-inner">
+                            <label className="text-[10px] font-black text-red-500 uppercase tracking-[0.3em] mb-8 block">Hasil Analisis Pixel</label>
+                            <p className="text-gray-300 text-sm leading-loose whitespace-pre-wrap font-mono">{res || "Menunggu data..."}</p>
+                            {loading && <i className="ph ph-spinner animate-spin text-3xl text-red-600 mt-4"></i>}
                         </div>
                     </div>
                 </div>
@@ -380,23 +360,21 @@
             const handleGen = async () => {
                 setLoading(true);
                 try {
-                    const data = await AI.call('generate-text', { prompt: "Buatkan naskah edukasi algoritma TikTok FYP paling update dalam format script video yang menarik bagi kreator pemula." });
+                    const data = await AI.call('generate-text', { prompt: "Buatkan naskah edukasi algoritma TikTok FYP paling update dalam format script video naskah panggung yang menarik." });
                     setRes(data.text);
-                } catch (e) { alert("Gagal."); }
+                } catch (e) { alert("Gagal"); }
                 setLoading(false);
             };
 
             return (
-                <div className="space-y-10 animate-in fade-in">
-                    <h3 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center gap-4">
-                        <i className="ph ph-wand text-red-600"></i> TikTok Algo Prompt
-                    </h3>
-                    <div className="bg-white/5 p-12 rounded-[50px] border border-white/10 shadow-2xl">
-                        <button onClick={handleGen} disabled={loading} className="btn-primary px-16 py-6 rounded-3xl font-black mb-12 shadow-lg transition-all uppercase tracking-tighter text-lg">
-                            {loading ? "Analisis Algoritma..." : "Generate Naskah Edukasi FYP"}
+                <div className="space-y-8 animate-in fade-in">
+                    <h3 className="text-3xl font-black text-white flex items-center gap-3 uppercase tracking-tighter"><i className="ph ph-wand text-red-600"></i> TikTok Algo Prompt</h3>
+                    <div className="bg-white/5 p-12 rounded-[48px] border border-white/10 shadow-2xl">
+                        <button onClick={handleGen} disabled={loading} className="btn-primary px-12 py-5 rounded-3xl font-black mb-12 shadow-lg uppercase tracking-tighter">
+                            {loading ? "Analisis Algoritma..." : "Generate Naskah FYP"}
                         </button>
-                        <div className="input-dark p-10 rounded-[40px] min-h-[350px] shadow-inner">
-                            <p className="whitespace-pre-wrap text-base text-gray-200 leading-relaxed font-medium">{res || "Klik tombol di atas untuk melihat rahasia algoritma viral..."}</p>
+                        <div className="input-dark p-8 rounded-[32px] min-h-[300px] border-red-900/10">
+                            <p className="whitespace-pre-wrap text-sm text-gray-300 leading-relaxed font-medium">{res || "Klik tombol untuk mendapatkan formula viral TikTok..."}</p>
                         </div>
                     </div>
                 </div>
@@ -411,32 +389,32 @@
             const handleAuth = async (e) => {
                 e.preventDefault();
                 setLoading(true);
-                const { error } = await virexaAuth.auth.signInWithPassword({ email, password });
+                const { error } = await virexaMasterAuth.auth.signInWithPassword({ email, password });
                 if (error) {
-                    const { error: regErr } = await virexaAuth.auth.signUp({ email, password });
+                    const { error: regErr } = await virexaMasterAuth.auth.signUp({ email, password });
                     if (regErr) alert(regErr.message);
-                    else alert("PENDAFTARAN BERHASIL! Silakan klik tombol MASUK lagi.");
+                    else alert("DAFTAR BERHASIL! Klik 'Masuk ke Studio' sekali lagi.");
                 }
                 setLoading(false);
             };
 
             return (
-                <div className="h-screen flex items-center justify-center p-8 bg-black relative">
-                    <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-red-600/10 rounded-full blur-[180px]"></div>
-                    <div className="bg-white/5 border border-white/10 p-16 rounded-[60px] w-full max-w-md shadow-[0_0_60px_rgba(0,0,0,0.8)] relative z-10 text-center">
-                        <div className="mb-16">
-                            <i className="ph-fill ph-sparkle text-8xl text-red-600 mb-8 block mx-auto drop-shadow-glow"></i>
+                <div className="h-screen flex items-center justify-center p-6 bg-black relative">
+                    <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-red-600/10 rounded-full blur-[150px]"></div>
+                    <div className="bg-white/5 border border-white/10 p-16 rounded-[64px] w-full max-w-md shadow-2xl relative z-10 text-center">
+                        <div className="mb-12">
+                            <i className="ph-fill ph-sparkle text-7xl text-red-600 mb-6 block mx-auto drop-shadow-glow"></i>
                             <h1 className="text-4xl font-black text-white tracking-tighter uppercase mb-4">Virexa Studio</h1>
-                            <p className="text-gray-500 text-[10px] uppercase tracking-[0.5em] font-black">Portal Akses Kreator</p>
+                            <p className="text-gray-500 text-[10px] uppercase tracking-[0.4em] font-black">Portal Akses Kreator</p>
                         </div>
                         <form onSubmit={handleAuth} className="space-y-6">
-                            <input type="email" placeholder="Email" className="w-full bg-black/80 border border-white/10 p-6 rounded-3xl outline-none focus:border-red-600 text-sm font-bold transition-all" onChange={e => setEmail(e.target.value)} required />
-                            <input type="password" placeholder="Password" className="w-full bg-black/80 border border-white/10 p-6 rounded-3xl outline-none focus:border-red-600 text-sm font-bold transition-all" onChange={e => setPassword(e.target.value)} required />
-                            <button className="w-full btn-primary py-6 rounded-3xl font-black text-white text-lg mt-8 shadow-2xl uppercase tracking-widest">
-                                {loading ? <i className="ph ph-spinner animate-spin"></i> : "Masuk ke Studio"}
+                            <input type="email" placeholder="Email" className="w-full bg-black/60 border border-white/10 p-6 rounded-3xl outline-none focus:border-red-600 text-sm font-bold" onChange={e => setEmail(e.target.value)} required />
+                            <input type="password" placeholder="Kata Sandi" className="w-full bg-black/60 border border-white/10 p-6 rounded-3xl outline-none focus:border-red-600 text-sm font-bold" onChange={e => setPassword(e.target.value)} required />
+                            <button className="w-full btn-primary py-6 rounded-3xl font-black text-white text-lg mt-6 shadow-xl shadow-red-900/20 uppercase tracking-widest transition-all">
+                                {loading ? <i className="ph ph-spinner animate-spin text-2xl"></i> : "Masuk ke Studio"}
                             </button>
                         </form>
-                        <p className="text-[10px] text-gray-700 mt-16 uppercase tracking-widest font-black italic">Virexa Security Protocol v2.0 - Active</p>
+                        <p className="text-[10px] text-gray-700 mt-12 uppercase tracking-widest font-black italic">Protected by Supabase Secure v2</p>
                     </div>
                 </div>
             );
