@@ -3,245 +3,381 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virexa Studio - Portal Kreator</title>
+    <title>Virexa Studio - Admin Dashboard</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel (Untuk kompilasi JSX di browser) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Supabase SDK -->
+
+    <!-- SUPABASE SDK CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #050000; }
         ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
-        body { background-color: #050000; color: #f3f4f6; }
-        .glass-sidebar { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        body {
+            background-color: #050000;
+            color: #f3f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(10, 0, 0, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.05);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(74, 4, 4, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            border-left: 4px solid #ef4444;
+            color: white;
+        }
+        
+        .nav-item {
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .view-hidden { display: none !important; }
+
+        /* Equalizer Style Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #1f2937;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="flex h-screen overflow-hidden relative">
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-
-        // ============================================================
-        // 1. PENGATURAN BACKEND & DATABASE (LIHAT DI SINI)
-        // ============================================================
-        
-        // GANTI link di bawah ini dengan URL dari VERCEL Anda!
-        // Contoh: "https://virexa-backend.vercel.app"
-        const BACKEND_URL = "https://virexa-backend.vercel.app"; 
-
-        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // ============================================================
-        // 2. LOGIKA LAYANAN AI (MENGGUNAKAN BACKEND)
-        // ============================================================
-        const AI = {
-            generateText: async (prompt, systemInstruction = "", signal) => {
-                const res = await fetch(`${BACKEND_URL}/api/generate-text`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, systemInstruction }), signal
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-                return data.text;
-            },
+    <!-- ============================================== -->
+    <!-- LAYAR KUNCI ADMIN -->
+    <!-- ============================================== -->
+    <div id="auth-overlay" class="fixed inset-0 z-[100] bg-[#050000]/95 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-sm flex flex-col items-center border-red-900/30">
+            <div class="relative mb-6">
+                <div class="absolute inset-0 bg-red-600 blur-lg opacity-40 rounded-full"></div>
+                <i class="ph-fill ph-lock-key text-6xl text-red-500 relative z-10"></i>
+            </div>
             
-            generateImage: async (prompt, ratio = "1:1", signal) => {
-                const res = await fetch(`${BACKEND_URL}/api/generate-image`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, ratio }), signal
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-                return data.image;
-            },
+            <h2 class="text-2xl font-black text-white mb-2 tracking-wide text-center">ADMIN ACCESS</h2>
+            <p class="text-xs text-gray-400 mb-8 text-center">Masukkan kode keamanan untuk membuka dashboard.</p>
             
-            analyzeImage: async (base64Image, prompt, signal) => {
-                const res = await fetch(`${BACKEND_URL}/api/generate-text`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, base64Image }), signal
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-                return data.text;
-            },
+            <input type="password" id="admin-password" placeholder="Kode Akses..." class="w-full bg-black/80 border border-red-900/50 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-red-500 mb-4 text-center tracking-[0.3em] font-mono shadow-inner transition-all">
+            
+            <button id="btn-login" class="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
+                <i class="ph-bold ph-sign-in"></i> Masuk Sistem
+            </button>
+            
+            <p id="auth-error" class="text-xs text-red-500 mt-4 hidden font-bold animate-pulse text-center">❌ Akses Ditolak!</p>
+        </div>
+    </div>
 
-            editImage: async (base64Images, prompt, ratio = "1:1", signal) => {
-                const res = await fetch(`${BACKEND_URL}/api/edit-image`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt, base64Images, ratio }), signal
-                });
-                const data = await res.json();
-                if (!data.success) throw new Error(data.error);
-                return data.image;
-            }
-        };
+    <!-- Sidebar -->
+    <aside class="w-72 glass-panel border-r border-white/10 flex flex-col z-20 shrink-0">
+        <div class="p-6 flex items-center gap-3 border-b border-white/10">
+            <i class="ph-fill ph-shield-check text-3xl text-red-500"></i>
+            <div>
+                <h1 class="text-xl font-black tracking-tight text-white">VIREXA</h1>
+                <p class="text-[9px] uppercase tracking-widest text-red-400 font-bold">Admin Center</p>
+            </div>
+        </div>
 
-        // --- UI HELPERS ---
-        const Toast = ({ message, type, onClose }) => {
-            useEffect(() => { const timer = setTimeout(onClose, 3000); return () => clearTimeout(timer); }, [onClose]);
-            const bg = type === 'error' ? 'bg-red-900 border-red-500' : 'bg-green-900 border-green-500';
-            return (
-                <div className={`fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 rounded-lg border backdrop-blur-md shadow-lg z-50 animate-bounce ${bg} text-white text-sm`}>
-                    <i className="ph-fill ph-info"></i> {message}
+        <nav class="flex-1 py-6 flex flex-col gap-1 overflow-y-auto">
+            <a href="#" id="nav-dashboard" onclick="switchView('dashboard')" class="nav-item active flex items-center gap-3 px-6 py-3 text-sm font-medium">
+                <i class="ph ph-squares-four text-lg"></i> Dashboard Overview
+            </a>
+            <a href="#" id="nav-users" onclick="switchView('users')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-users text-lg"></i> Manajemen Kreator
+            </a>
+            <a href="#" id="nav-calculator" onclick="switchView('calculator')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-calculator text-lg"></i> Kalkulator Bisnis
+            </a>
+        </nav>
+
+        <div class="p-6 border-t border-white/10">
+            <button onclick="logoutAdmin()" class="w-full py-2 bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
+                <i class="ph ph-sign-out"></i> Kunci Dashboard
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <header class="h-20 glass-panel border-b border-white/5 flex items-center justify-between px-8 z-20">
+            <div>
+                <h2 id="header-title" class="text-2xl font-bold text-white">Dashboard Overview</h2>
+                <p id="header-desc" class="text-xs text-gray-400">Status aktivitas sistem secara real-time.</p>
+            </div>
+            <div id="clock" class="text-sm font-mono text-gray-400">00:00:00</div>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- VIEW: DASHBOARD -->
+        <!-- ============================================== -->
+        <div id="view-dashboard" class="flex-1 overflow-y-auto p-8 z-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="glass-panel p-6 rounded-2xl">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Total Kreator</p>
+                    <h3 id="dash-total-users" class="text-3xl font-black text-white">0</h3>
                 </div>
-            );
-        };
-
-        // ============================================================
-        // 3. KOMPONEN UTAMA APLIKASI
-        // ============================================================
-        function App() {
-            const [uiUser, setUiUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('home');
-            const [toast, setToast] = useState(null);
-            const [isInitializing, setIsInitializing] = useState(true);
-
-            useEffect(() => {
-                supabase.auth.getSession().then(({ data: { session } }) => {
-                    setUiUser(session?.user ?? null);
-                    setIsInitializing(false);
-                });
-                supabase.auth.onAuthStateChange((_event, session) => {
-                    setUiUser(session?.user ?? null);
-                });
-            }, []);
-
-            const showToast = (message, type = 'success') => setToast({ message, type });
-
-            if (isInitializing) return (
-                <div className="h-screen flex items-center justify-center bg-black">
-                    <i className="ph ph-spinner-gap animate-spin text-4xl text-red-600"></i>
+                <div class="glass-panel p-6 rounded-2xl border-green-900/30">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Status Server</p>
+                    <h3 class="text-3xl font-black text-green-500">Aktif</h3>
                 </div>
-            );
+                <div class="glass-panel p-6 rounded-2xl border-blue-900/30">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">API Backend</p>
+                    <h3 class="text-3xl font-black text-blue-500">Connected</h3>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border-red-900/30">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Error Rate</p>
+                    <h3 class="text-3xl font-black text-red-500">0.01%</h3>
+                </div>
+            </div>
 
-            if (!uiUser) return <AuthScreen showToast={showToast} supabase={supabase} />;
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl h-80">
+                    <canvas id="mainChart"></canvas>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="font-bold text-white mb-4">Statistik Fitur</h3>
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
 
-            return (
-                <div className="flex h-screen overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="w-64 glass-sidebar flex flex-col p-6 space-y-8">
-                        <div className="flex items-center gap-2">
-                            <i className="ph-fill ph-sparkle text-3xl text-red-600"></i>
-                            <h1 className="text-xl font-black tracking-tighter">VIREXA</h1>
-                        </div>
-                        <nav className="flex-1 space-y-2">
-                            <button onClick={() => setActiveTab('home')} className={`w-full text-left px-4 py-3 rounded-xl transition ${activeTab === 'home' ? 'bg-red-600/20 text-white' : 'text-gray-400 hover:bg-white/5'}`}>Beranda</button>
-                            <button onClick={() => setActiveTab('image-gen')} className={`w-full text-left px-4 py-3 rounded-xl transition ${activeTab === 'image-gen' ? 'bg-red-600/20 text-white' : 'text-gray-400 hover:bg-white/5'}`}>Affiliate Studio</button>
-                        </nav>
-                        <button onClick={() => supabase.auth.signOut()} className="text-gray-500 text-xs hover:text-white transition">Keluar Akun</button>
-                    </aside>
+        <!-- ============================================== -->
+        <!-- VIEW: MANAJEMEN KREATOR -->
+        <!-- ============================================== -->
+        <div id="view-users" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="glass-panel rounded-2xl overflow-hidden">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-black/50 text-[10px] uppercase text-gray-400 border-b border-white/5">
+                            <th class="p-4">Nama / Email</th>
+                            <th class="p-4">Paket</th>
+                            <th class="p-4">Poin</th>
+                            <th class="p-4">Status</th>
+                            <th class="p-4 text-right">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody" class="text-sm">
+                        <!-- Data dari Supabase -->
+                        <tr><td colspan="5" class="p-8 text-center text-gray-500">Memuat data dari Supabase...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-                    {/* Content */}
-                    <main className="flex-1 overflow-y-auto p-10">
-                        {activeTab === 'home' && (
-                            <div className="space-y-4">
-                                <h2 className="text-3xl font-bold">Halo, Kreator!</h2>
-                                <p className="text-gray-400">Selamat datang kembali di Virexa Studio. Siap berkarya hari ini?</p>
+        <!-- ============================================== -->
+        <!-- VIEW: KALKULATOR BISNIS -->
+        <!-- ============================================== -->
+        <div id="view-calculator" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="max-w-4xl mx-auto space-y-8">
+                <div class="glass-panel p-8 rounded-3xl border-red-900/30">
+                    <h3 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                        <i class="ph-fill ph-calculator text-red-500"></i> Simulator Profit Bisnis AI
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                        <div class="space-y-6">
+                            <div>
+                                <label class="flex justify-between text-xs font-bold text-gray-400 uppercase mb-3">Target Jumlah User: <span class="text-white" id="val-users">100</span></label>
+                                <input type="range" id="calc-users" min="10" max="1000" step="10" value="100" oninput="calculateProfit()" class="w-full">
                             </div>
-                        )}
-                        {activeTab === 'image-gen' && <ImageGenView showToast={showToast} />}
-                    </main>
-
-                    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-                </div>
-            );
-        }
-
-        function ImageGenView({ showToast }) {
-            const [prompt, setPrompt] = useState("");
-            const [image, setImage] = useState(null);
-            const [loading, setLoading] = useState(false);
-
-            const handleGen = async () => {
-                if (!prompt) return showToast("Prompt tidak boleh kosong", "error");
-                setLoading(true);
-                try {
-                    const url = await AI.generateImage(prompt);
-                    setImage(url);
-                    showToast("Gambar berhasil dibuat!");
-                } catch (e) {
-                    showToast(e.message, "error");
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            return (
-                <div className="max-w-2xl space-y-6">
-                    <h3 className="text-xl font-bold">Affiliate Studio</h3>
-                    <textarea 
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white focus:outline-none focus:border-red-600" 
-                        placeholder="Masukkan deskripsi gambar..."
-                        rows="4"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                    ></textarea>
-                    <button 
-                        onClick={handleGen} 
-                        disabled={loading}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-2xl w-full transition disabled:opacity-50"
-                    >
-                        {loading ? "Sedang Merender..." : "Mulai Render Gambar"}
-                    </button>
-                    {image && <img src={image} className="w-full rounded-2xl border border-white/10 mt-6 shadow-2xl" />}
-                </div>
-            );
-        }
-
-        function AuthScreen({ showToast, supabase }) {
-            const [email, setEmail] = useState("");
-            const [password, setPassword] = useState("");
-            const [loading, setLoading] = useState(false);
-
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) {
-                    const { error: signUpErr } = await supabase.auth.signUp({ email, password });
-                    if (signUpErr) showToast(signUpErr.message, "error");
-                    else showToast("Berhasil mendaftar! Silakan login.");
-                }
-                setLoading(false);
-            };
-
-            return (
-                <div className="h-screen flex items-center justify-center bg-black p-4">
-                    <div className="bg-white/5 border border-white/10 p-8 rounded-3xl w-full max-w-sm space-y-6">
-                        <div className="text-center">
-                            <h1 className="text-2xl font-black">VIREXA STUDIO</h1>
-                            <p className="text-xs text-gray-500 mt-2 tracking-widest uppercase">Akses Masuk</p>
+                            <div>
+                                <label class="flex justify-between text-xs font-bold text-gray-400 uppercase mb-3">Harga Pendaftaran: <span class="text-white" id="val-price">Rp 50.000</span></label>
+                                <input type="range" id="calc-price" min="10000" max="500000" step="5000" value="50000" oninput="calculateProfit()" class="w-full">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-xs font-bold text-gray-400 uppercase mb-3">Biaya API per 1M Token: <span class="text-white" id="val-api">Rp 5.000</span></label>
+                                <input type="range" id="calc-api" min="1000" max="20000" step="500" value="5000" oninput="calculateProfit()" class="w-full">
+                            </div>
                         </div>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input type="email" placeholder="Email" className="w-full bg-black/50 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-red-600" onChange={e => setEmail(e.target.value)} />
-                            <input type="password" placeholder="Password" className="w-full bg-black/50 border border-white/10 p-4 rounded-xl focus:outline-none focus:border-red-600" onChange={e => setPassword(e.target.value)} />
-                            <button className="w-full bg-red-600 py-4 rounded-xl font-bold hover:bg-red-700 transition">{loading ? "Memproses..." : "Masuk ke Studio"}</button>
-                        </form>
+
+                        <div class="bg-black/60 rounded-2xl p-6 border border-white/5 flex flex-col justify-center text-center">
+                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Estimasi Keuntungan Bersih</p>
+                            <h1 id="res-profit" class="text-4xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.5)]">Rp 0</h1>
+                            <p class="text-[10px] text-gray-500 mt-4 italic">Berdasarkan asumsi penggunaan rata-rata per user.</p>
+                        </div>
                     </div>
                 </div>
-            );
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // 1. OTENTIKASI SEDERHANA
+        const btnLogin = document.getElementById('btn-login');
+        const passInput = document.getElementById('admin-password');
+        const authOverlay = document.getElementById('auth-overlay');
+
+        if (sessionStorage.getItem('virexa_admin') === 'true') authOverlay.classList.add('hidden');
+
+        btnLogin.addEventListener('click', () => {
+            if (passInput.value === 'admin2015') {
+                sessionStorage.setItem('virexa_admin', 'true');
+                authOverlay.classList.add('opacity-0');
+                setTimeout(() => { authOverlay.classList.add('hidden'); fetchUsers(); }, 500);
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+            }
+        });
+
+        function logoutAdmin() {
+            sessionStorage.removeItem('virexa_admin');
+            location.reload();
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // 2. SUPABASE INTEGRATION
+        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
+        
+        // Perbaikan: Ganti nama variabel client menjadi 'supabaseAdmin' agar tidak bentrok dengan global 'supabase' dari CDN
+        const supabaseAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function fetchUsers() {
+            const { data, error } = await supabaseAdmin.from('users_public').select('*').order('created_at', { ascending: false });
+            if (data) {
+                const tbody = document.getElementById('usersTableBody');
+                tbody.innerHTML = '';
+                data.forEach(user => {
+                    tbody.innerHTML += `
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td class="p-4">
+                                <div class="font-bold text-white">${user.name || 'User'}</div>
+                                <div class="text-[10px] text-gray-500">${user.email}</div>
+                            </td>
+                            <td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] bg-red-900/30 text-red-400 border border-red-500/20">${user.tier}</span></td>
+                            <td class="p-4 font-mono">${user.points}</td>
+                            <td class="p-4"><span class="text-green-500 font-bold">● ${user.status}</span></td>
+                            <td class="p-4 text-right">
+                                <button class="text-gray-400 hover:text-white transition-colors"><i class="ph ph-gear"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                const dashTotal = document.getElementById('dash-total-users');
+                if (dashTotal) dashTotal.innerText = data.length;
+            }
+        }
+
+        // 3. NAVIGATION
+        function switchView(view) {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            const activeNav = document.getElementById('nav-'+view);
+            if (activeNav) activeNav.classList.add('active');
+            
+            document.getElementById('view-dashboard').classList.add('view-hidden');
+            document.getElementById('view-users').classList.add('view-hidden');
+            document.getElementById('view-calculator').classList.add('view-hidden');
+            
+            const targetView = document.getElementById('view-'+view);
+            if (targetView) targetView.classList.remove('view-hidden');
+            
+            document.getElementById('header-title').innerText = view.charAt(0).toUpperCase() + view.slice(1);
+        }
+
+        // 4. CALCULATOR LOGIC
+        function calculateProfit() {
+            const users = parseInt(document.getElementById('calc-users').value);
+            const price = parseInt(document.getElementById('calc-price').value);
+            const apiCost = parseInt(document.getElementById('calc-api').value);
+
+            document.getElementById('val-users').innerText = users;
+            document.getElementById('val-price').innerText = 'Rp ' + price.toLocaleString();
+            document.getElementById('val-api').innerText = 'Rp ' + apiCost.toLocaleString();
+
+            const revenue = users * price;
+            const expense = (users * 50 * (apiCost/1000000)) + 300000; // Asumsi 50 token/user + biaya server tetap
+            const profit = revenue - expense;
+
+            document.getElementById('res-profit').innerText = 'Rp ' + profit.toLocaleString();
+        }
+
+        // 5. CHARTS
+        const canvasMain = document.getElementById('mainChart');
+        if (canvasMain) {
+            const ctxMain = canvasMain.getContext('2d');
+            new Chart(ctxMain, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Aktivitas Render',
+                        data: [12, 19, 3, 5, 2, 3, 7],
+                        borderColor: '#ef4444',
+                        tension: 0.4,
+                        fill: true,
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } }, x: { grid: { display: false } } } }
+            });
+        }
+
+        const canvasDoughnut = document.getElementById('doughnutChart');
+        if (canvasDoughnut) {
+            const ctxDoughnut = canvasDoughnut.getContext('2d');
+            new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Studio', 'TikTok', 'Vision'],
+                    datasets: [{
+                        data: [60, 25, 15],
+                        backgroundColor: ['#ef4444', '#991b1b', '#4a0404'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { cutout: '80%', plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 10 } } } } }
+            });
+        }
+
+        // 6. INITIAL RUN
+        calculateProfit();
+        setInterval(() => {
+            const clockEl = document.getElementById('clock');
+            if (clockEl) clockEl.innerText = new Date().toLocaleTimeString();
+        }, 1000);
+        
+        if (sessionStorage.getItem('virexa_admin') === 'true') fetchUsers();
     </script>
 </body>
 </html>
