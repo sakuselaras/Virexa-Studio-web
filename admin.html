@@ -1,1 +1,477 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virexa Studio - Admin Dashboard</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+    <!-- SUPABASE SDK CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #050000; }
+        ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
+        
+        body {
+            background-color: #050000;
+            color: #f3f4f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .glass-panel {
+            background: rgba(10, 0, 0, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.05);
+        }
+
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(74, 4, 4, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
+            border-left: 4px solid #ef4444;
+            color: white;
+        }
+        
+        .nav-item {
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 4px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .view-hidden { display: none !important; }
+
+        /* Equalizer Style Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #ef4444;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #1f2937;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden relative">
+
+    <!-- ============================================== -->
+    <!-- LAYAR KUNCI ADMIN (PASSWORD SCREEN) -->
+    <!-- ============================================== -->
+    <div id="auth-overlay" class="fixed inset-0 z-[100] bg-[#050000]/95 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-sm flex flex-col items-center border-red-900/30">
+            <div class="relative mb-6">
+                <div class="absolute inset-0 bg-red-600 blur-lg opacity-40 rounded-full"></div>
+                <i class="ph-fill ph-lock-key text-6xl text-red-500 relative z-10"></i>
+            </div>
+            
+            <h2 class="text-2xl font-black text-white mb-2 tracking-wide text-center uppercase">Akses Admin</h2>
+            <p class="text-xs text-gray-400 mb-8 text-center">Masukkan kode otoritas untuk mengelola Virexa Studio.</p>
+            
+            <input type="password" id="admin-password" placeholder="Kode Akses..." class="w-full bg-black/80 border border-red-900/50 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-red-500 mb-4 text-center tracking-[0.3em] font-mono shadow-inner transition-all">
+            
+            <button id="btn-login" class="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
+                <i class="ph-bold ph-sign-in"></i> Buka Sistem
+            </button>
+            
+            <p id="auth-error" class="text-xs text-red-500 mt-4 hidden font-bold animate-pulse text-center">❌ Kode akses ditolak!</p>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="w-72 glass-panel border-r border-white/10 flex flex-col z-20 shrink-0">
+        <div class="p-6 flex items-center gap-3 border-b border-white/10">
+            <i class="ph-fill ph-shield-check text-3xl text-red-500"></i>
+            <div>
+                <h1 class="text-xl font-black tracking-tight text-white">VIREXA</h1>
+                <p class="text-[9px] uppercase tracking-widest text-red-400 font-bold">Command Center</p>
+            </div>
+        </div>
+
+        <nav class="flex-1 py-6 flex flex-col gap-1 overflow-y-auto">
+            <p class="px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Menu Utama</p>
+            <a href="#" id="nav-dashboard" onclick="switchView('dashboard')" class="nav-item active flex items-center gap-3 px-6 py-3 text-sm font-medium">
+                <i class="ph ph-squares-four text-lg"></i> Dashboard Overview
+            </a>
+            <a href="#" id="nav-users" onclick="switchView('users')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-users text-lg"></i> Manajemen Kreator
+            </a>
+            <a href="#" id="nav-calculator" onclick="switchView('calculator')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
+                <i class="ph ph-calculator text-lg"></i> Kalkulator Bisnis
+            </a>
+        </nav>
+
+        <div class="p-6 border-t border-white/10">
+            <button onclick="logoutAdmin()" class="w-full py-2 bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
+                <i class="ph ph-sign-out"></i> Kunci Dashboard
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <header class="h-20 glass-panel border-b border-white/5 flex items-center justify-between px-8 z-20">
+            <div>
+                <h2 id="header-title" class="text-2xl font-bold text-white">Dashboard Overview</h2>
+                <p id="header-desc" class="text-xs text-gray-400">Memantau beban server dan aktivitas AI secara real-time.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="clock" class="text-sm font-mono text-gray-400 bg-black/40 px-4 py-2 rounded-lg border border-white/5">00:00:00</div>
+            </div>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- VIEW: DASHBOARD OVERVIEW -->
+        <!-- ============================================== -->
+        <div id="view-dashboard" class="flex-1 overflow-y-auto p-8 z-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="glass-panel p-6 rounded-2xl border-white/5">
+                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Kreator</p>
+                    <h3 id="dash-total-users" class="text-3xl font-black text-white">0</h3>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border-green-900/30">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status Sistem</p>
+                    <h3 class="text-3xl font-black text-green-500">Live</h3>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border-blue-900/30">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Koneksi Backend</p>
+                    <h3 class="text-3xl font-black text-blue-500">Aktif</h3>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl border-red-900/30">
+                    <p class="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">Error Rate API</p>
+                    <h3 class="text-3xl font-black text-red-500">0.01%</h3>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl h-[350px]">
+                    <h3 class="font-bold text-white mb-4 flex items-center gap-2"><i class="ph ph-chart-line text-red-500"></i> Tren Aktivitas Render (Simulasi)</h3>
+                    <canvas id="mainChart"></canvas>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="font-bold text-white mb-6">Distribusi Layanan</h3>
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW: MANAJEMEN KREATOR -->
+        <!-- ============================================== -->
+        <div id="view-users" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-black/80 text-[10px] uppercase font-bold tracking-widest text-gray-400 border-b border-white/5">
+                            <th class="p-4">Informasi Kreator</th>
+                            <th class="p-4">Paket Akun</th>
+                            <th class="p-4">Sisa Poin</th>
+                            <th class="p-4">Status Otoritas</th>
+                            <th class="p-4 text-right">Aksi Manajemen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody" class="text-sm">
+                        <tr><td colspan="5" class="p-8 text-center text-gray-500 flex flex-col items-center justify-center gap-2">
+                            <i class="ph ph-spinner-gap animate-spin text-2xl text-red-500"></i> Sinkronisasi Supabase...
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- VIEW: KALKULATOR BISNIS -->
+        <!-- ============================================== -->
+        <div id="view-calculator" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
+            <div class="max-w-4xl mx-auto space-y-8">
+                <div class="glass-panel p-8 rounded-3xl border-red-900/30 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-red-600/5 rounded-full blur-[100px] pointer-events-none"></div>
+                    
+                    <h3 class="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                        <i class="ph-fill ph-calculator text-red-500"></i> Simulator Profit Bisnis AI
+                    </h3>
+                    <p class="text-xs text-gray-400 mb-8 border-b border-white/10 pb-6">Hitung proyeksi pendapatan berdasarkan biaya API Google Gemini Flash.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div class="space-y-8">
+                            <div>
+                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Target Jumlah User: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-users">100</span></label>
+                                <input type="range" id="calc-users" min="10" max="5000" step="10" value="100" oninput="calculateProfit()" class="w-full">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Biaya Pendaftaran: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-price">Rp 50.000</span></label>
+                                <input type="range" id="calc-price" min="10000" max="1000000" step="5000" value="50000" oninput="calculateProfit()" class="w-full">
+                            </div>
+                            <div>
+                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Biaya API per 1M Token: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-api">Rp 5.000</span></label>
+                                <input type="range" id="calc-api" min="1000" max="25000" step="500" value="5000" oninput="calculateProfit()" class="w-full">
+                            </div>
+                        </div>
+
+                        <div class="bg-black/60 rounded-3xl p-8 border border-white/10 flex flex-col justify-center text-center shadow-inner">
+                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Proyeksi Laba Bersih</p>
+                            <h1 id="res-profit" class="text-5xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.5)] tracking-tighter">Rp 0</h1>
+                            <div class="mt-8 space-y-2 text-[10px] text-gray-500">
+                                <div class="flex justify-between"><span>Pendapatan Kotor:</span> <span id="res-gross" class="text-white">Rp 0</span></div>
+                                <div class="flex justify-between"><span>Biaya API Google:</span> <span id="res-api-cost" class="text-red-400">Rp 0</span></div>
+                                <div class="flex justify-between"><span>Biaya Server:</span> <span class="text-red-400">Rp 300.000</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // ==============================================
+        // 1. OTENTIKASI & KEAMANAN
+        // ==============================================
+        var btnLogin = document.getElementById('btn-login');
+        var passInput = document.getElementById('admin-password');
+        var authOverlay = document.getElementById('auth-overlay');
+
+        if (sessionStorage.getItem('virexa_admin') === 'true') {
+            authOverlay.classList.add('hidden');
+        }
+
+        btnLogin.addEventListener('click', function() {
+            // PASSWORD DEFAULT ADMIN
+            if (passInput.value === 'admin2015') {
+                sessionStorage.setItem('virexa_admin', 'true');
+                authOverlay.classList.add('opacity-0');
+                setTimeout(function() { 
+                    authOverlay.classList.add('hidden'); 
+                    fetchUsers(); 
+                }, 500);
+            } else {
+                document.getElementById('auth-error').classList.remove('hidden');
+                passInput.value = '';
+            }
+        });
+
+        passInput.addEventListener('keypress', function(e) { if(e.key === 'Enter') btnLogin.click(); });
+
+        function logoutAdmin() {
+            sessionStorage.removeItem('virexa_admin');
+            location.reload();
+        }
+
+        // ==============================================
+        // 2. INTEGRASI SUPABASE (DATABASE)
+        // ==============================================
+        // Menggunakan var agar bisa dirender ulang tanpa error konstanta
+        var SUPABASE_CONFIG_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
+        var SUPABASE_CONFIG_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
+        
+        // Ganti nama total agar tidak bentrok dengan global 'supabase' dari pustaka CDN
+        var virexaDb = null;
+        if (window.supabase) {
+            virexaDb = window.supabase.createClient(SUPABASE_CONFIG_URL, SUPABASE_CONFIG_KEY);
+        }
+
+        async function fetchUsers() {
+            if (!virexaDb) return;
+            var { data, error } = await virexaDb.from('users_public').select('*').order('created_at', { ascending: false });
+            if (data) {
+                var tbody = document.getElementById('usersTableBody');
+                tbody.innerHTML = '';
+                data.forEach(function(user) {
+                    var isLocked = user.status === 'Locked';
+                    tbody.innerHTML += `
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+                            <td class="p-4">
+                                <div class="font-bold text-white uppercase tracking-tighter">${user.name || 'Anonymous Kreator'}</div>
+                                <div class="text-[10px] text-gray-500 font-mono">${user.email}</div>
+                            </td>
+                            <td class="p-4">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${user.tier === 'Pro' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'} border border-white/10 uppercase">
+                                    ${user.tier}
+                                </span>
+                            </td>
+                            <td class="p-4 font-mono text-red-500 font-bold">${user.points}</td>
+                            <td class="p-4">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="w-1.5 h-1.5 rounded-full ${isLocked ? 'bg-red-600 animate-pulse' : 'bg-green-500 shadow-[0_0_5px_#22c55e]'}"></span>
+                                    <span class="text-xs ${isLocked ? 'text-red-500' : 'text-gray-300'}">${user.status}</span>
+                                </div>
+                            </td>
+                            <td class="p-4 text-right">
+                                <button class="bg-white/5 hover:bg-white/20 p-2 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all">
+                                    <i class="ph ph-pencil-simple text-sm"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                var dashTotal = document.getElementById('dash-total-users');
+                if (dashTotal) dashTotal.innerText = data.length;
+            }
+        }
+
+        // ==============================================
+        // 3. NAVIGASI DASHBOARD
+        // ==============================================
+        function switchView(view) {
+            document.querySelectorAll('.nav-item').forEach(function(i) {
+                i.classList.remove('active', 'text-white');
+                i.classList.add('text-gray-400');
+            });
+            var activeNav = document.getElementById('nav-'+view);
+            if (activeNav) {
+                activeNav.classList.add('active', 'text-white');
+                activeNav.classList.remove('text-gray-400');
+            }
+            
+            document.getElementById('view-dashboard').classList.add('view-hidden');
+            document.getElementById('view-users').classList.add('view-hidden');
+            document.getElementById('view-calculator').classList.add('view-hidden');
+            
+            var targetView = document.getElementById('view-'+view);
+            if (targetView) targetView.classList.remove('view-hidden');
+            
+            var titles = { dashboard: "Dashboard Overview", users: "Manajemen Kreator", calculator: "Kalkulator Bisnis" };
+            var descs = { dashboard: "Status sistem real-time", users: "Kelola status dan poin pengguna", calculator: "Simulator laba bisnis AI" };
+            
+            document.getElementById('header-title').innerText = titles[view];
+            document.getElementById('header-desc').innerText = descs[view];
+        }
+
+        // ==============================================
+        // 4. LOGIKA KALKULATOR PROFIT
+        // ==============================================
+        function calculateProfit() {
+            var users = parseInt(document.getElementById('calc-users').value);
+            var price = parseInt(document.getElementById('calc-price').value);
+            var apiCost = parseInt(document.getElementById('calc-api').value);
+
+            document.getElementById('val-users').innerText = users.toLocaleString();
+            document.getElementById('val-price').innerText = 'Rp ' + price.toLocaleString();
+            document.getElementById('val-api').innerText = 'Rp ' + apiCost.toLocaleString();
+
+            var grossRevenue = users * price;
+            // Asumsi: Rata-rata 100 render per user per bulan
+            var totalApiCost = (users * 100 * (apiCost / 1000000)); 
+            var serverFixedCost = 300000;
+            var netProfit = grossRevenue - totalApiCost - serverFixedCost;
+
+            document.getElementById('res-gross').innerText = 'Rp ' + grossRevenue.toLocaleString();
+            document.getElementById('res-api-cost').innerText = 'Rp ' + Math.ceil(totalApiCost).toLocaleString();
+            document.getElementById('res-profit').innerText = 'Rp ' + Math.floor(netProfit).toLocaleString();
+            
+            var profitEl = document.getElementById('res-profit');
+            if(netProfit < 0) {
+                profitEl.className = "text-5xl font-black text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)] tracking-tighter";
+            } else {
+                profitEl.className = "text-5xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.5)] tracking-tighter";
+            }
+        }
+
+        // ==============================================
+        // 5. VISUALISASI GRAFIK
+        // ==============================================
+        window.onload = function() {
+            var canvasMain = document.getElementById('mainChart');
+            if (canvasMain) {
+                var ctxMain = canvasMain.getContext('2d');
+                var grad = ctxMain.createLinearGradient(0,0,0,300);
+                grad.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                new Chart(ctxMain, {
+                    type: 'line',
+                    data: {
+                        labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+                        datasets: [{
+                            label: 'Render Aktivitas',
+                            data: [142, 280, 190, 450, 310, 580, 890],
+                            borderColor: '#ef4444',
+                            borderWidth: 3,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#fff',
+                            tension: 0.4,
+                            fill: true,
+                            backgroundColor: grad
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, ticks: { color: '#6b7280' } }, 
+                            x: { grid: { display: false }, ticks: { color: '#6b7280' } } 
+                        } 
+                    }
+                });
+            }
+
+            var canvasDoughnut = document.getElementById('doughnutChart');
+            if (canvasDoughnut) {
+                var ctxDoughnut = canvasDoughnut.getContext('2d');
+                new Chart(ctxDoughnut, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Studio', 'TikTok', 'Vision', 'Algo'],
+                        datasets: [{
+                            data: [55, 25, 15, 5],
+                            backgroundColor: ['#ef4444', '#991b1b', '#4a0404', '#1f2937'],
+                            borderWidth: 0,
+                            hoverOffset: 10
+                        }]
+                    },
+                    options: { 
+                        cutout: '75%', 
+                        plugins: { 
+                            legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 20, font: { size: 10 }, usePointStyle: true, pointStyle: 'circle' } } 
+                        } 
+                    }
+                });
+            }
+
+            calculateProfit();
+            setInterval(function() {
+                var clockEl = document.getElementById('clock');
+                if (clockEl) clockEl.innerText = new Date().toLocaleTimeString('id-ID', { hour12: false });
+            }, 1000);
+            
+            if (sessionStorage.getItem('virexa_admin') === 'true') {
+                fetchUsers();
+                setInterval(fetchUsers, 10000);
+            }
+        }
+    </script>
+</body>
+</html>
