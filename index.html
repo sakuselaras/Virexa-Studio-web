@@ -349,6 +349,15 @@
             img.src = url;
         };
 
+        const downloadImage = (url, filename) => {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename || 'virexa-render.jpg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
         // ==========================================
         // KOMPONEN UTAMA
         // ==========================================
@@ -360,45 +369,71 @@
             const [supabaseLoaded, setSupabaseLoaded] = useState(false);
             const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
 
-            // NEW FEATURE: 1. State sinkronisasi profil Admin Panel
+            // State untuk sinkronisasi profil kontrol dari Admin
             const [userProfile, setUserProfile] = useState(null);
 
             useEffect(() => {
                 const initSupabase = setInterval(() => {
                     if (window.supabase) {
                         clearInterval(initSupabase);
-                        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                        
-                        supabase.auth.getSession().then(({ data: { session } }) => {
-                            setUiUser(session?.user ?? null);
-                            setIsInitializing(false);
-                        });
+                        try {
+                            if (!supabase) {
+                                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                            }
+                            
+                            // NEW FEATURE: Menambahkan penanganan error (catch) agar tidak stuck di layar loading
+                            supabase.auth.getSession().then(({ data: { session } }) => {
+                                setUiUser(session?.user ?? null);
+                                setIsInitializing(false);
+                            }).catch(err => {
+                                console.error("Gagal memuat sesi Supabase:", err);
+                                setIsInitializing(false);
+                            });
 
-                        supabase.auth.onAuthStateChange((_event, session) => {
-                            setUiUser(session?.user ?? null);
-                        });
-                        setSupabaseLoaded(true);
+                            supabase.auth.onAuthStateChange((_event, session) => {
+                                setUiUser(session?.user ?? null);
+                            });
+                            setSupabaseLoaded(true);
+                        } catch (err) {
+                            console.error("Gagal inisialisasi Supabase:", err);
+                            setIsInitializing(false);
+                            setSupabaseLoaded(true);
+                        }
                     }
                 }, 100);
-                return () => clearInterval(initSupabase);
+                
+                // NEW FEATURE: Timeout Fallback jika script gagal merespon (misal koneksi buruk)
+                const fallbackTimeout = setTimeout(() => {
+                    clearInterval(initSupabase);
+                    setIsInitializing(false);
+                }, 10000);
+
+                return () => {
+                    clearInterval(initSupabase);
+                    clearTimeout(fallbackTimeout);
+                };
             }, []);
 
-            // NEW FEATURE: 2. Listener Real-Time & Auto-Register User Baru ke Admin Panel
+            // Listener Real-Time & Auto-Register User Baru ke Admin Panel
             useEffect(() => {
                 if (!uiUser || !supabaseLoaded) return;
                 
                 const fetchProfile = async () => {
-                    const { data, error } = await supabase.from('users_public').select('*').eq('id', uiUser.id).single();
-                    if (data) {
-                        setUserProfile(data);
-                    } else if (error) {
-                        // Mendaftarkan otomatis pengguna baru agar muncul di Admin Panel
-                        const newProfile = {
-                            id: uiUser.id, email: uiUser.email, name: uiUser.email?.split('@')[0] || 'User',
-                            tier: 'Free', points: 50, status: 'Active', total_gen: 0
-                        };
-                        await supabase.from('users_public').insert([newProfile]);
-                        setUserProfile(newProfile);
+                    try {
+                        const { data, error } = await supabase.from('users_public').select('*').eq('id', uiUser.id).single();
+                        if (data) {
+                            setUserProfile(data);
+                        } else if (error) {
+                            // Mendaftarkan otomatis pengguna baru agar muncul di Admin Panel
+                            const newProfile = {
+                                id: uiUser.id, email: uiUser.email, name: uiUser.email?.split('@')[0] || 'User',
+                                tier: 'Free', points: 50, status: 'Active', total_gen: 0
+                            };
+                            await supabase.from('users_public').insert([newProfile]);
+                            setUserProfile(newProfile);
+                        }
+                    } catch (err) {
+                        console.error("Gagal sinkronisasi admin:", err);
                     }
                 };
                 fetchProfile();
@@ -417,7 +452,7 @@
                 setUserProfile(null);
             };
 
-            if (isInitializing || !supabaseLoaded) {
+            if (isInitializing) {
                 return (
                     <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center text-white">
                         <i className="ph ph-spinner animate-spin text-4xl text-red-500 mb-4"></i>
@@ -426,11 +461,23 @@
                 );
             }
 
+            // NEW FEATURE: Tampilan error jelas jika Database terblokir, bukan loading selamanya
+            if (!supabaseLoaded) {
+                return (
+                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center text-white p-4">
+                        <i className="ph-fill ph-warning-octagon text-5xl text-red-600 mb-4"></i>
+                        <h2 className="text-xl font-bold uppercase tracking-widest mb-2 text-center">Gagal Memuat Database</h2>
+                        <p className="text-sm text-gray-400 text-center max-w-sm">Koneksi ke Supabase terputus. Pastikan perangkat Anda terhubung ke internet dan matikan ekstensi AdBlock/VPN jika ada.</p>
+                        <button onClick={() => window.location.reload()} className="mt-6 bg-white/10 hover:bg-white/20 border border-white/20 px-6 py-2.5 rounded-xl text-sm font-bold transition-all">Muat Ulang Halaman</button>
+                    </div>
+                );
+            }
+
             if (!uiUser) {
                 return <AuthScreen supabase={supabase} />;
             }
 
-            // NEW FEATURE: 3. Layar pemblokiran penuh jika status akun dikunci oleh Admin
+            // Layar pemblokiran penuh jika status akun dikunci oleh Admin
             if (userProfile && userProfile.status === 'Locked') {
                 return (
                     <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center p-4">
@@ -472,7 +519,6 @@
                                     </div>
                                     <div className="overflow-hidden">
                                         <p className="text-xs font-bold text-white truncate">{uiUser?.email?.split('@')[0] || 'Kreator'}</p>
-                                        {/* NEW FEATURE: 4. Menampilkan Tier dan Poin Dinamis dari Admin Panel */}
                                         <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">{userProfile?.tier || 'Free'} Tier • {userProfile?.points || 0} Poin</p>
                                     </div>
                                 </div>
@@ -595,7 +641,7 @@
                     </header>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <StatCard icon="ph-clock-counter-clockwise" label="TOTAL ASET" value="0" />
-                        <StatCard icon="ph-image" label="GAMGAMBAR DIBUAT" value="0" />
+                        <StatCard icon="ph-image" label="GAMBAR DIBUAT" value="0" />
                         <StatCard icon="ph-text-t" label="PROMPT DIHASILKAN" value="0" />
                         <StatCard icon="ph-grid-four" label="PROMPT ALGO" value="0" />
                     </div>
@@ -1591,4 +1637,30 @@ Format Balasan WAJIB persis seperti ini:
                                             <div className="mb-4">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] text-gray-400 font-bold uppercase">Visual Prompt AI:</span>
-                                                    <button onClick={() => copyToClipboard(s.visualPrompt).then(ok => ok &&
+                                                    <button onClick={() => copyToClipboard(s.visualPrompt).then(ok => ok && alert('Visual Prompt tersalin!'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                                </div>
+                                                <p className="text-xs text-gray-300 font-mono bg-[#050000] p-3 rounded-lg border border-white/5">{s.visualPrompt}</p>
+                                            </div>
+                                            
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">Dialog:</span>
+                                                    <button onClick={() => copyToClipboard(s.dialog).then(ok => ok && alert('Dialog tersalin!'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                                </div>
+                                                <p className="text-sm text-white italic bg-[#1a0505] p-3 rounded-lg border border-red-900/30">"{s.dialog}"</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
