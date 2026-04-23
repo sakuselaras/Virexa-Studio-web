@@ -292,11 +292,9 @@
         // ==============================================
         // 2. INTEGRASI SUPABASE (DATABASE)
         // ==============================================
-        // Menggunakan var agar bisa dirender ulang tanpa error konstanta
         var SUPABASE_CONFIG_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
         var SUPABASE_CONFIG_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
         
-        // Ganti nama total agar tidak bentrok dengan global 'supabase' dari pustaka CDN
         var virexaDb = null;
         if (window.supabase) {
             virexaDb = window.supabase.createClient(SUPABASE_CONFIG_URL, SUPABASE_CONFIG_KEY);
@@ -329,8 +327,11 @@
                                 </div>
                             </td>
                             <td class="p-4 text-right">
-                                <button class="bg-white/5 hover:bg-white/20 p-2 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all">
-                                    <i class="ph ph-pencil-simple text-sm"></i>
+                                <button onclick="toggleUserStatus('${user.id}', '${user.status}')" class="bg-white/5 hover:bg-white/20 p-2 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all mr-2" title="${isLocked ? 'Buka Kunci' : 'Kunci Akun'}">
+                                    <i class="ph ${isLocked ? 'ph-lock-key-open text-green-400' : 'ph-lock-key text-red-400'} text-sm"></i>
+                                </button>
+                                <button onclick="deleteUser('${user.id}')" class="bg-red-950/30 hover:bg-red-600 p-2 rounded-lg text-red-500 hover:text-white border border-red-900/50 transition-all" title="Hapus Akun">
+                                    <i class="ph ph-trash text-sm"></i>
                                 </button>
                             </td>
                         </tr>
@@ -340,6 +341,24 @@
                 if (dashTotal) dashTotal.innerText = data.length;
             }
         }
+
+        window.toggleUserStatus = async function(id, currentStatus) {
+            if (!virexaDb) return;
+            const newStatus = currentStatus === 'Locked' ? 'Active' : 'Locked';
+            const msg = newStatus === 'Locked' ? "Kunci akses kreator ini?" : "Buka kembali akses kreator ini?";
+            if (confirm(msg)) {
+                await virexaDb.from('users_public').update({ status: newStatus }).eq('id', id);
+                fetchUsers();
+            }
+        };
+
+        window.deleteUser = async function(id) {
+            if (!virexaDb) return;
+            if (confirm("PERINGATAN: Hapus pengguna ini secara permanen dari sistem?")) {
+                await virexaDb.from('users_public').delete().eq('id', id);
+                fetchUsers();
+            }
+        };
 
         // ==============================================
         // 3. NAVIGASI DASHBOARD
