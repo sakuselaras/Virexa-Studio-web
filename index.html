@@ -394,7 +394,19 @@
                             .android-mode .upload-placeholder { height: 140px !important; }
                             .android-mode .text-\\[11px\\] { font-size: 9px !important; }
                             .android-mode .text-\\[10px\\] { font-size: 8.5px !important; }
+                            
+                            /* NEW FEATURE: CSS penyesuaian posisi Tombol Back */
+                            .android-mode-back { left: 300px; }
+                            .android-mode .android-mode-back { left: 1rem !important; }
                         `}</style>
+                    )}
+
+                    {/* NEW FEATURE: Tombol Back (Kiri Atas), hanya tampil jika bukan di Home */}
+                    {activeTab !== 'home' && (
+                        <button onClick={() => setActiveTab('home')} className="fixed top-4 z-[999] flex items-center gap-2 bg-red-900/40 hover:bg-red-600 backdrop-blur px-4 py-2.5 rounded-xl border border-red-500/30 text-white shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all android-mode-back">
+                            <i className="ph-bold ph-arrow-left text-lg"></i>
+                            <span className="text-[10px] font-bold uppercase tracking-widest hidden sm:block">Kembali</span>
+                        </button>
                     )}
 
                     {/* NEW FEATURE: Wrapper dinamis (Kode lama di dalamnya 100% UTUH) */}
