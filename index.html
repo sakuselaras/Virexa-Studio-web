@@ -5,14 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virexa Studio - Portal Kreator Pro</title>
     
-    <!-- Framework & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Supabase SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         ::-webkit-scrollbar { width: 6px; }
@@ -179,11 +176,6 @@
 
         const apiKey = ""; 
         
-        // Konfigurasi Supabase
-        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
-        let supabase = null;
-
         const fetchWithRetry = async (url, options, retries = 2) => {
             const delays = [500, 1000]; 
             for (let i = 0; i <= retries; i++) {
@@ -359,137 +351,11 @@
         };
 
         // ==========================================
-        // KOMPONEN UTAMA
+        // KOMPONEN UTAMA (AUTH BYPASSED)
         // ==========================================
         function App() {
             const [activeTab, setActiveTab] = useState('home');
-            
-            const [uiUser, setUiUser] = useState(null);
-            const [isInitializing, setIsInitializing] = useState(true);
-            const [supabaseLoaded, setSupabaseLoaded] = useState(false);
-            const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
-
-            // State untuk sinkronisasi profil kontrol dari Admin
-            const [userProfile, setUserProfile] = useState(null);
-
-            useEffect(() => {
-                const initSupabase = setInterval(() => {
-                    if (window.supabase) {
-                        clearInterval(initSupabase);
-                        try {
-                            if (!supabase) {
-                                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                            }
-                            
-                            // NEW FEATURE: Menambahkan penanganan error (catch) agar tidak stuck di layar loading
-                            supabase.auth.getSession().then(({ data: { session } }) => {
-                                setUiUser(session?.user ?? null);
-                                setIsInitializing(false);
-                            }).catch(err => {
-                                console.error("Gagal memuat sesi Supabase:", err);
-                                setIsInitializing(false);
-                            });
-
-                            supabase.auth.onAuthStateChange((_event, session) => {
-                                setUiUser(session?.user ?? null);
-                            });
-                            setSupabaseLoaded(true);
-                        } catch (err) {
-                            console.error("Gagal inisialisasi Supabase:", err);
-                            setIsInitializing(false);
-                            setSupabaseLoaded(true);
-                        }
-                    }
-                }, 100);
-                
-                // NEW FEATURE: Timeout Fallback jika script gagal merespon (misal koneksi buruk)
-                const fallbackTimeout = setTimeout(() => {
-                    clearInterval(initSupabase);
-                    setIsInitializing(false);
-                }, 10000);
-
-                return () => {
-                    clearInterval(initSupabase);
-                    clearTimeout(fallbackTimeout);
-                };
-            }, []);
-
-            // Listener Real-Time & Auto-Register User Baru ke Admin Panel
-            useEffect(() => {
-                if (!uiUser || !supabaseLoaded) return;
-                
-                const fetchProfile = async () => {
-                    try {
-                        const { data, error } = await supabase.from('users_public').select('*').eq('id', uiUser.id).single();
-                        if (data) {
-                            setUserProfile(data);
-                        } else if (error) {
-                            // Mendaftarkan otomatis pengguna baru agar muncul di Admin Panel
-                            const newProfile = {
-                                id: uiUser.id, email: uiUser.email, name: uiUser.email?.split('@')[0] || 'User',
-                                tier: 'Free', points: 50, status: 'Active', total_gen: 0
-                            };
-                            await supabase.from('users_public').insert([newProfile]);
-                            setUserProfile(newProfile);
-                        }
-                    } catch (err) {
-                        console.error("Gagal sinkronisasi admin:", err);
-                    }
-                };
-                fetchProfile();
-
-                const profileSub = supabase.channel('user-profile-sync')
-                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users_public', filter: `id=eq.${uiUser.id}` }, (payload) => {
-                        setUserProfile(payload.new);
-                    }).subscribe();
-
-                return () => { supabase.removeChannel(profileSub); };
-            }, [uiUser, supabaseLoaded]);
-
-            const handleLogout = async () => {
-                if (supabase) await supabase.auth.signOut();
-                setUiUser(null);
-                setUserProfile(null);
-            };
-
-            if (isInitializing) {
-                return (
-                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center text-white">
-                        <i className="ph ph-spinner animate-spin text-4xl text-red-500 mb-4"></i>
-                        <p className="font-bold tracking-widest uppercase text-xs">Memuat Sistem Virexa...</p>
-                    </div>
-                );
-            }
-
-            // NEW FEATURE: Tampilan error jelas jika Database terblokir, bukan loading selamanya
-            if (!supabaseLoaded) {
-                return (
-                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center text-white p-4">
-                        <i className="ph-fill ph-warning-octagon text-5xl text-red-600 mb-4"></i>
-                        <h2 className="text-xl font-bold uppercase tracking-widest mb-2 text-center">Gagal Memuat Database</h2>
-                        <p className="text-sm text-gray-400 text-center max-w-sm">Koneksi ke Supabase terputus. Pastikan perangkat Anda terhubung ke internet dan matikan ekstensi AdBlock/VPN jika ada.</p>
-                        <button onClick={() => window.location.reload()} className="mt-6 bg-white/10 hover:bg-white/20 border border-white/20 px-6 py-2.5 rounded-xl text-sm font-bold transition-all">Muat Ulang Halaman</button>
-                    </div>
-                );
-            }
-
-            if (!uiUser) {
-                return <AuthScreen supabase={supabase} />;
-            }
-
-            // Layar pemblokiran penuh jika status akun dikunci oleh Admin
-            if (userProfile && userProfile.status === 'Locked') {
-                return (
-                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center p-4">
-                        <div className="bg-black/60 backdrop-blur-xl border border-red-900/50 p-8 rounded-3xl max-w-md w-full text-center shadow-[0_0_30px_rgba(220,38,38,0.2)] animate-in fade-in zoom-in-95">
-                            <i className="ph-fill ph-lock-key text-6xl text-red-600 mx-auto mb-4 animate-pulse"></i>
-                            <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-wide">Akses Ditangguhkan</h2>
-                            <p className="text-sm text-gray-400 mb-8">Akun Anda telah dikunci oleh Administrator Virexa. Akses ke studio dan aset dicabut sementara.</p>
-                            <button onClick={handleLogout} className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 px-6 rounded-xl w-full shadow-[0_0_15px_rgba(220,38,38,0.3)]">Keluar Akun</button>
-                        </div>
-                    </div>
-                );
-            }
+            const [uiUser] = useState({ id: 'pro_user', name: 'ir' });
 
             return (
                 <div className="flex h-screen overflow-hidden">
@@ -513,17 +379,17 @@
                                 <i className="ph ph-history text-lg"></i> Aset Saya
                             </div>
                             <div className="p-4 glass-panel border-red-900/30 flex items-center justify-between">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-800 to-black border border-white/20 flex items-center justify-center shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-800 to-black border border-white/20 flex items-center justify-center">
                                         <i className="ph-fill ph-user text-white"></i>
                                     </div>
                                     <div className="overflow-hidden">
-                                        <p className="text-xs font-bold text-white truncate">{uiUser?.email?.split('@')[0] || 'Kreator'}</p>
-                                        <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">{userProfile?.tier || 'Free'} Tier • {userProfile?.points || 0} Poin</p>
+                                        <p className="text-xs font-bold text-white truncate">{uiUser.name}</p>
+                                        <p className="text-[10px] text-red-500 font-black uppercase tracking-widest leading-none">Pro Tier</p>
                                     </div>
                                 </div>
-                                <div className="p-2 bg-black/40 rounded-lg border border-white/5 hover:bg-red-600 transition-colors cursor-pointer" onClick={handleLogout}>
-                                    <i className="ph ph-sign-out text-gray-500 hover:text-white transition-colors"></i>
+                                <div className="p-2 bg-black/40 rounded-lg border border-white/5">
+                                    <i className="ph ph-sign-out text-gray-500"></i>
                                 </div>
                             </div>
                         </div>
@@ -538,87 +404,6 @@
                             <div className={activeTab === 'algo' ? 'block' : 'hidden'}><AlgoView /></div>
                         </div>
                     </main>
-                </div>
-            );
-        }
-
-        function AuthScreen({ supabase }) {
-            const [isLoading, setIsLoading] = useState(false);
-            const [isLoginMode, setIsLoginMode] = useState(true);
-            const [email, setEmail] = useState("");
-            const [password, setPassword] = useState("");
-
-            const handleAuth = async (e) => {
-                e.preventDefault();
-                if (!email || !password) return alert("Email dan password wajib diisi");
-                
-                setIsLoading(true);
-                try {
-                    if (isLoginMode) {
-                        const { error } = await supabase.auth.signInWithPassword({ email, password });
-                        if (error) throw error;
-                    } else {
-                        const { error } = await supabase.auth.signUp({ email, password });
-                        if (error) throw error;
-                        alert("Pendaftaran berhasil! Silakan masuk.");
-                        setIsLoginMode(true);
-                    }
-                } catch (error) {
-                    alert(error.message);
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-
-            const handleGoogleLogin = async () => {
-                setIsLoading(true);
-                try {
-                    const { error } = await supabase.auth.signInWithOAuth({
-                        provider: 'google',
-                        options: { redirectTo: window.location.origin }
-                    });
-                    if (error) throw error;
-                } catch (error) {
-                    alert("Gagal masuk dengan Google: " + error.message);
-                    setIsLoading(false);
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-[#050000] flex items-center justify-center p-4 relative overflow-hidden font-sans">
-                    <div className="absolute inset-0 pointer-events-none z-0">
-                        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#4a0404] rounded-full blur-[150px] opacity-40"></div>
-                        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#8a0808] rounded-full blur-[150px] opacity-30"></div>
-                    </div>
-                    
-                    <div className="w-full max-w-md bg-black/60 backdrop-blur-xl border border-white/20 shadow-[0_0_30px_rgba(255,0,0,0.15)] rounded-3xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
-                        <div className="flex flex-col items-center mb-8">
-                            <i className="ph-fill ph-sparkle text-5xl text-white mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]"></i>
-                            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white to-red-500 tracking-tight">VIREXA STUDIO</h1>
-                            <p className="text-red-200/60 text-xs mt-2 font-bold tracking-widest uppercase">Portal Akses Kreator</p>
-                        </div>
-
-                        <form onSubmit={handleAuth} className="space-y-4 flex flex-col items-center">
-                            <input type="email" placeholder="Alamat Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500" required />
-                            <input type="password" placeholder="Kata Sandi" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500" required />
-                            
-                            <button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
-                                {isLoading ? <i className="ph ph-spinner animate-spin text-xl"></i> : isLoginMode ? "Masuk ke Studio" : "Daftar Akun Baru"}
-                            </button>
-
-                            <button type="button" onClick={() => setIsLoginMode(!isLoginMode)} className="text-xs text-gray-400 hover:text-white transition-colors mt-2">
-                                {isLoginMode ? "Belum punya akun? Daftar di sini" : "Sudah punya akun? Masuk di sini"}
-                            </button>
-
-                            <div className="w-full flex items-center gap-3 my-2 opacity-50">
-                                <div className="flex-1 h-px bg-white/20"></div><span className="text-[10px] text-white">ATAU</span><div className="flex-1 h-px bg-white/20"></div>
-                            </div>
-
-                            <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-3">
-                                <i className="ph-fill ph-google-logo text-xl text-red-500"></i> Masuk dengan Google
-                            </button>
-                        </form>
-                    </div>
                 </div>
             );
         }
@@ -1258,7 +1043,7 @@ Dialog :  Wanita`}>Naskah 5: Masalah & Solusi Produk (Durasi 21s)</option>
             );
         }
 
-        function PromptFinderView() {
+        function FinderView() {
             const [preview, setPreview] = useState(null);
             const [b64, setB64] = useState("");
             const [loading, setLoading] = useState(false);
@@ -1406,7 +1191,7 @@ Format Balasan WAJIB persis seperti ini:
             );
         }
 
-        function AlgoView() {
+        function AlgoView({ showToast, saveHistory }) {
             const [loading, setLoading] = useState(false);
             const [preview, setPreview] = useState(null);
             const [b64, setB64] = useState("");
