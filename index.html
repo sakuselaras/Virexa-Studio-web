@@ -261,7 +261,6 @@
             };
         });
 
-        // Ekstraksi frame otomatis dari file video (MP4/WebM)
         const extractFrameFromVideo = (file) => {
             return new Promise((resolve, reject) => {
                 const video = document.createElement('video');
@@ -357,54 +356,96 @@
             const [activeTab, setActiveTab] = useState('home');
             const [uiUser] = useState({ id: 'pro_user', name: 'ir' });
 
+            // NEW FEATURE: State untuk View Mode (PC / Android)
+            const [viewMode, setViewMode] = useState('pc'); 
+
             return (
-                <div className="flex h-screen overflow-hidden">
-                    <aside className="sidebar flex flex-col h-full shrink-0">
-                        <div className="p-8 mb-4">
-                            <h1 className="text-xl font-black italic tracking-tighter text-white uppercase flex items-center">
-                                <i className="ph-fill ph-sparkle text-red-600 mr-2 text-2xl"></i>VIREXA STUDIO
-                            </h1>
-                        </div>
+                <>
+                    {/* NEW FEATURE: UI Toggle PC/Android Tanpa Merusak Layout Asli */}
+                    <div className="fixed top-4 right-4 z-[999] flex gap-2 bg-black/80 backdrop-blur p-1.5 rounded-2xl border border-white/10 shadow-2xl">
+                        <button onClick={() => setViewMode('pc')} className={`px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all ${viewMode === 'pc' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' : 'text-gray-500 hover:text-white'}`}><i className="ph-fill ph-desktop mr-2"></i>PC</button>
+                        <button onClick={() => setViewMode('android')} className={`px-4 py-2 rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all ${viewMode === 'android' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' : 'text-gray-500 hover:text-white'}`}><i className="ph-fill ph-device-mobile mr-2"></i>Android</button>
+                    </div>
 
-                        <nav className="flex-1">
-                            <NavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon="ph-squares-four" label="Beranda" />
-                            <NavItem active={activeTab === 'affiliate'} onClick={() => setActiveTab('affiliate')} icon="ph-image" label="Affiliate Studio" />
-                            <NavItem active={activeTab === 'tiktok'} onClick={() => setActiveTab('tiktok')} icon="ph-tiktok-logo" label="TikTok Factory" />
-                            <NavItem active={activeTab === 'finder'} onClick={() => setActiveTab('finder')} icon="ph-magnifying-glass" label="Prompt Finder" />
-                            <NavItem active={activeTab === 'algo'} onClick={() => setActiveTab('algo')} icon="ph-wand" label="Prompt Algoritma" />
-                        </nav>
+                    {/* NEW FEATURE: Injeksi CSS Khusus Android (Responsive Overrides) */}
+                    {viewMode === 'android' && (
+                        <style>{`
+                            .android-mode { max-width: 430px; margin: 0 auto; border-left: 1px solid rgba(255,255,255,0.1); border-right: 1px solid rgba(255,255,255,0.1); position: relative; background-color: #050000; box-shadow: 0 0 50px rgba(220,38,38,0.05); }
+                            .android-mode .sidebar { position: absolute; bottom: 0; left: 0; width: 100%; height: 80px; flex-direction: row !important; z-index: 50; padding: 0 !important; border-right: none; border-top: 1px solid rgba(255,255,255,0.1); background: rgba(5, 0, 0, 0.95); backdrop-filter: blur(10px); }
+                            .android-mode .sidebar > div:first-child, .android-mode .sidebar > div:last-child { display: none !important; }
+                            .android-mode .sidebar nav { flex-direction: row !important; display: flex; width: 100%; justify-content: space-around; align-items: center; }
+                            .android-mode .nav-item { flex-direction: column; padding: 10px 0; border: none !important; background: transparent !important; gap: 6px; }
+                            .android-mode .nav-item i { font-size: 24px; }
+                            .android-mode .nav-item span { font-size: 9px; display: block; }
+                            .android-mode .nav-item.active { color: #dc2626 !important; background: transparent !important; border-left: none !important; }
+                            .android-mode .nav-item.active i { color: #dc2626; text-shadow: 0 0 10px rgba(220,38,38,0.5); }
+                            .android-mode main { padding: 20px !important; padding-bottom: 100px !important; }
+                            .android-mode .grid { grid-template-columns: 1fr !important; }
+                            .android-mode .lg\\:col-span-5, .android-mode .lg\\:col-span-7 { grid-column: span 1 / span 1 !important; }
+                            
+                            /* NEW FEATURE: Sempurnakan keserasian font, jarak, dan padding di 4 fitur (khusus Android) */
+                            .android-mode h2 { font-size: 1.35rem !important; line-height: 1.6rem !important; }
+                            .android-mode .gap-10 { gap: 1rem !important; }
+                            .android-mode .gap-8 { gap: 0.75rem !important; }
+                            .android-mode .space-y-10 > * + * { margin-top: 1.25rem !important; }
+                            .android-mode .space-y-8 > * + * { margin-top: 1rem !important; }
+                            .android-mode .glass-panel, .android-mode .naskah-box { padding: 1.25rem !important; }
+                            .android-mode .btn-red { padding: 0.85rem !important; font-size: 0.85rem !important; }
+                            .android-mode .upload-placeholder { height: 140px !important; }
+                            .android-mode .text-\\[11px\\] { font-size: 9px !important; }
+                            .android-mode .text-\\[10px\\] { font-size: 8.5px !important; }
+                        `}</style>
+                    )}
 
-                        <div className="p-6">
-                            <div className="nav-item mb-4 opacity-50 cursor-default">
-                                <i className="ph ph-history text-lg"></i> Aset Saya
+                    {/* NEW FEATURE: Wrapper dinamis (Kode lama di dalamnya 100% UTUH) */}
+                    <div className={`flex h-screen overflow-hidden ${viewMode === 'android' ? 'android-mode' : 'w-full'}`}>
+                        <aside className="sidebar flex flex-col h-full shrink-0">
+                            <div className="p-8 mb-4">
+                                <h1 className="text-xl font-black italic tracking-tighter text-white uppercase flex items-center">
+                                    <i className="ph-fill ph-sparkle text-red-600 mr-2 text-2xl"></i>VIREXA STUDIO
+                                </h1>
                             </div>
-                            <div className="p-4 glass-panel border-red-900/30 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-800 to-black border border-white/20 flex items-center justify-center">
-                                        <i className="ph-fill ph-user text-white"></i>
+
+                            <nav className="flex-1">
+                                <NavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon="ph-squares-four" label="Beranda" />
+                                <NavItem active={activeTab === 'affiliate'} onClick={() => setActiveTab('affiliate')} icon="ph-image" label="Affiliate Studio" />
+                                <NavItem active={activeTab === 'tiktok'} onClick={() => setActiveTab('tiktok')} icon="ph-tiktok-logo" label="TikTok Factory" />
+                                <NavItem active={activeTab === 'finder'} onClick={() => setActiveTab('finder')} icon="ph-magnifying-glass" label="Prompt Finder" />
+                                <NavItem active={activeTab === 'algo'} onClick={() => setActiveTab('algo')} icon="ph-wand" label="Prompt Algoritma" />
+                            </nav>
+
+                            <div className="p-6">
+                                <div className="nav-item mb-4 opacity-50 cursor-default">
+                                    <i className="ph ph-history text-lg"></i> Aset Saya
+                                </div>
+                                <div className="p-4 glass-panel border-red-900/30 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-800 to-black border border-white/20 flex items-center justify-center">
+                                            <i className="ph-fill ph-user text-white"></i>
+                                        </div>
+                                        <div className="overflow-hidden">
+                                            <p className="text-xs font-bold text-white truncate">{uiUser.name}</p>
+                                            <p className="text-[10px] text-red-500 font-black uppercase tracking-widest leading-none">Pro Tier</p>
+                                        </div>
                                     </div>
-                                    <div className="overflow-hidden">
-                                        <p className="text-xs font-bold text-white truncate">{uiUser.name}</p>
-                                        <p className="text-[10px] text-red-500 font-black uppercase tracking-widest leading-none">Pro Tier</p>
+                                    <div className="p-2 bg-black/40 rounded-lg border border-white/5">
+                                        <i className="ph ph-sign-out text-gray-500"></i>
                                     </div>
                                 </div>
-                                <div className="p-2 bg-black/40 rounded-lg border border-white/5">
-                                    <i className="ph ph-sign-out text-gray-500"></i>
-                                </div>
                             </div>
-                        </div>
-                    </aside>
+                        </aside>
 
-                    <main className="flex-1 overflow-y-auto p-12 bg-[#050000]">
-                        <div className="max-w-7xl mx-auto">
-                            <div className={activeTab === 'home' ? 'block' : 'hidden'}><HomeView setActiveTab={setActiveTab} /></div>
-                            <div className={activeTab === 'affiliate' ? 'block' : 'hidden'}><AffiliateView /></div>
-                            <div className={activeTab === 'tiktok' ? 'block' : 'hidden'}><TikTokView /></div>
-                            <div className={activeTab === 'finder' ? 'block' : 'hidden'}><FinderView /></div>
-                            <div className={activeTab === 'algo' ? 'block' : 'hidden'}><AlgoView /></div>
-                        </div>
-                    </main>
-                </div>
+                        <main className="flex-1 overflow-y-auto p-12 bg-[#050000]">
+                            <div className="max-w-7xl mx-auto">
+                                <div className={activeTab === 'home' ? 'block' : 'hidden'}><HomeView setActiveTab={setActiveTab} /></div>
+                                <div className={activeTab === 'affiliate' ? 'block' : 'hidden'}><AffiliateView /></div>
+                                <div className={activeTab === 'tiktok' ? 'block' : 'hidden'}><TikTokView /></div>
+                                <div className={activeTab === 'finder' ? 'block' : 'hidden'}><FinderView /></div>
+                                <div className={activeTab === 'algo' ? 'block' : 'hidden'}><AlgoView /></div>
+                            </div>
+                        </main>
+                    </div>
+                </>
             );
         }
 
