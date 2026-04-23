@@ -3,472 +3,1618 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virexa Studio - Admin Dashboard</title>
+    <title>Virexa Studio - Portal Kreator Pro</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Framework & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
-    <!-- SUPABASE SDK CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #050000; }
         ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #dc2626; }
         
-        body {
-            background-color: #050000;
-            color: #f3f4f6;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        body { 
+            background-color: #050000; 
+            color: #f3f4f6; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
         }
 
-        .glass-panel {
-            background: rgba(10, 0, 0, 0.8);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 0 20px rgba(255, 0, 0, 0.05);
+        .sidebar { 
+            background: #050000; 
+            border-right: 1px solid rgba(255, 255, 255, 0.1); 
+            width: 280px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            color: #9ca3af;
+            font-size: 14px;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #ffffff;
         }
 
         .nav-item.active {
-            background: linear-gradient(90deg, rgba(74, 4, 4, 0.8) 0%, rgba(0, 0, 0, 0) 100%);
-            border-left: 4px solid #ef4444;
-            color: white;
+            background: linear-gradient(90deg, rgba(74, 4, 4, 0.4) 0%, rgba(0, 0, 0, 0) 100%);
+            border-left: 4px solid #dc2626;
+            color: #ffffff;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+        }
+
+        .input-area {
+            background: #000000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            color: #ffffff;
+            outline: none;
+            width: 100%;
+        }
+
+        .input-area:focus { border-color: #dc2626; }
+
+        .toggle-btn {
+            background: #000000;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #9ca3af;
+            transition: all 0.2s;
+        }
+
+        .toggle-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #ffffff;
+            color: #ffffff;
+        }
+
+        .btn-red {
+            background: #dc2626;
+            color: #ffffff;
+            font-weight: 800;
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-red:hover {
+            background: #b91c1c;
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
+        }
+
+        .btn-red:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .upload-placeholder {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+            height: 180px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
         }
         
-        .nav-item {
-            border-left: 4px solid transparent;
-            transition: all 0.3s ease;
+        .upload-placeholder img { width: 100%; height: 100%; object-fit: contain; }
+
+        .delete-overlay {
+            position: absolute; top: 8px; right: 8px;
+            background: rgba(0,0,0,0.7); padding: 4px 10px;
+            border-radius: 6px; font-size: 10px; cursor: pointer;
+            color: #ef4444; font-weight: bold; border: 1px solid rgba(239, 68, 68, 0.3);
+            z-index: 10;
+        }
+        .delete-overlay:hover { background: #ef4444; color: white; }
+
+        .naskah-box {
+            background: #000000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
         }
 
-        .nav-item:hover:not(.active) {
-            background: rgba(255, 255, 255, 0.05);
-            border-left: 4px solid rgba(255, 255, 255, 0.3);
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
         }
 
-        .view-hidden { display: none !important; }
+        .quick-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 32px;
+            text-align: left;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
 
-        /* Equalizer Style Slider */
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: transparent;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 24px;
-            width: 24px;
-            border-radius: 50%;
-            background: #ef4444;
-            cursor: pointer;
-            margin-top: -8px;
-            box-shadow: 0 0 15px rgba(239, 68, 68, 0.8);
-            border: 2px solid white;
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 8px;
-            cursor: pointer;
-            background: #1f2937;
-            border-radius: 4px;
-            border: 1px solid rgba(255,255,255,0.1);
+        .quick-card:hover {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.05);
         }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden relative">
+<body>
+    <div id="root"></div>
 
-    <!-- ============================================== -->
-    <!-- LAYAR KUNCI ADMIN (PASSWORD SCREEN) -->
-    <!-- ============================================== -->
-    <div id="auth-overlay" class="fixed inset-0 z-[100] bg-[#050000]/95 backdrop-blur-xl flex flex-col items-center justify-center transition-opacity duration-500">
-        <div class="glass-panel p-8 rounded-3xl w-full max-w-sm flex flex-col items-center border-red-900/30">
-            <div class="relative mb-6">
-                <div class="absolute inset-0 bg-red-600 blur-lg opacity-40 rounded-full"></div>
-                <i class="ph-fill ph-lock-key text-6xl text-red-500 relative z-10"></i>
-            </div>
-            
-            <h2 class="text-2xl font-black text-white mb-2 tracking-wide text-center uppercase">Akses Admin</h2>
-            <p class="text-xs text-gray-400 mb-8 text-center">Masukkan kode otoritas untuk mengelola Virexa Studio.</p>
-            
-            <input type="password" id="admin-password" placeholder="Kode Akses..." class="w-full bg-black/80 border border-red-900/50 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-red-500 mb-4 text-center tracking-[0.3em] font-mono shadow-inner transition-all">
-            
-            <button id="btn-login" class="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
-                <i class="ph-bold ph-sign-in"></i> Buka Sistem
-            </button>
-            
-            <p id="auth-error" class="text-xs text-red-500 mt-4 hidden font-bold animate-pulse text-center">❌ Kode akses ditolak!</p>
-        </div>
-    </div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-    <!-- Sidebar -->
-    <aside class="w-72 glass-panel border-r border-white/10 flex flex-col z-20 shrink-0">
-        <div class="p-6 flex items-center gap-3 border-b border-white/10">
-            <i class="ph-fill ph-shield-check text-3xl text-red-500"></i>
-            <div>
-                <h1 class="text-xl font-black tracking-tight text-white">VIREXA</h1>
-                <p class="text-[9px] uppercase tracking-widest text-red-400 font-bold">Command Center</p>
-            </div>
-        </div>
-
-        <nav class="flex-1 py-6 flex flex-col gap-1 overflow-y-auto">
-            <p class="px-6 text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Menu Utama</p>
-            <a href="#" id="nav-dashboard" onclick="switchView('dashboard')" class="nav-item active flex items-center gap-3 px-6 py-3 text-sm font-medium">
-                <i class="ph ph-squares-four text-lg"></i> Dashboard Overview
-            </a>
-            <a href="#" id="nav-users" onclick="switchView('users')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
-                <i class="ph ph-users text-lg"></i> Manajemen Kreator
-            </a>
-            <a href="#" id="nav-calculator" onclick="switchView('calculator')" class="nav-item flex items-center gap-3 px-6 py-3 text-sm font-medium text-gray-400">
-                <i class="ph ph-calculator text-lg"></i> Kalkulator Bisnis
-            </a>
-        </nav>
-
-        <div class="p-6 border-t border-white/10">
-            <button onclick="logoutAdmin()" class="w-full py-2 bg-red-950/40 hover:bg-red-600 text-red-400 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
-                <i class="ph ph-sign-out"></i> Kunci Dashboard
-            </button>
-        </div>
-    </aside>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col relative overflow-hidden">
+        const apiKey = ""; 
         
-        <header class="h-20 glass-panel border-b border-white/5 flex items-center justify-between px-8 z-20">
-            <div>
-                <h2 id="header-title" class="text-2xl font-bold text-white">Dashboard Overview</h2>
-                <p id="header-desc" class="text-xs text-gray-400">Memantau beban server dan aktivitas AI secara real-time.</p>
-            </div>
-            <div class="flex items-center gap-4">
-                <div id="clock" class="text-sm font-mono text-gray-400 bg-black/40 px-4 py-2 rounded-lg border border-white/5">00:00:00</div>
-            </div>
-        </header>
+        // Konfigurasi Supabase
+        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
+        let supabase = null;
 
-        <!-- ============================================== -->
-        <!-- VIEW: DASHBOARD OVERVIEW -->
-        <!-- ============================================== -->
-        <div id="view-dashboard" class="flex-1 overflow-y-auto p-8 z-10">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="glass-panel p-6 rounded-2xl border-white/5">
-                    <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Kreator</p>
-                    <h3 id="dash-total-users" class="text-3xl font-black text-white">0</h3>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl border-green-900/30">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status Sistem</p>
-                    <h3 class="text-3xl font-black text-green-500">Live</h3>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl border-blue-900/30">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Koneksi Backend</p>
-                    <h3 class="text-3xl font-black text-blue-500">Aktif</h3>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl border-red-900/30">
-                    <p class="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">Error Rate API</p>
-                    <h3 class="text-3xl font-black text-red-500">0.01%</h3>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 glass-panel p-6 rounded-2xl h-[350px]">
-                    <h3 class="font-bold text-white mb-4 flex items-center gap-2"><i class="ph ph-chart-line text-red-500"></i> Tren Aktivitas Render (Simulasi)</h3>
-                    <canvas id="mainChart"></canvas>
-                </div>
-                <div class="glass-panel p-6 rounded-2xl">
-                    <h3 class="font-bold text-white mb-6">Distribusi Layanan</h3>
-                    <canvas id="doughnutChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <!-- ============================================== -->
-        <!-- VIEW: MANAJEMEN KREATOR -->
-        <!-- ============================================== -->
-        <div id="view-users" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
-            <div class="glass-panel rounded-2xl overflow-hidden shadow-2xl">
-                <table class="w-full text-left">
-                    <thead>
-                        <tr class="bg-black/80 text-[10px] uppercase font-bold tracking-widest text-gray-400 border-b border-white/5">
-                            <th class="p-4">Informasi Kreator</th>
-                            <th class="p-4">Paket Akun</th>
-                            <th class="p-4">Sisa Poin</th>
-                            <th class="p-4">Status Otoritas</th>
-                            <th class="p-4 text-right">Aksi Manajemen</th>
-                        </tr>
-                    </thead>
-                    <tbody id="usersTableBody" class="text-sm">
-                        <tr><td colspan="5" class="p-8 text-center text-gray-500 flex flex-col items-center justify-center gap-2">
-                            <i class="ph ph-spinner-gap animate-spin text-2xl text-red-500"></i> Sinkronisasi Supabase...
-                        </td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- ============================================== -->
-        <!-- VIEW: KALKULATOR BISNIS -->
-        <!-- ============================================== -->
-        <div id="view-calculator" class="flex-1 overflow-y-auto p-8 z-10 view-hidden">
-            <div class="max-w-4xl mx-auto space-y-8">
-                <div class="glass-panel p-8 rounded-3xl border-red-900/30 relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-64 h-64 bg-red-600/5 rounded-full blur-[100px] pointer-events-none"></div>
+        const fetchWithRetry = async (url, options, retries = 2) => {
+            const delays = [500, 1000]; 
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    if (options.signal && options.signal.aborted) throw new Error("Proses dihentikan pengguna");
                     
-                    <h3 class="text-2xl font-bold text-white mb-2 flex items-center gap-3">
-                        <i class="ph-fill ph-calculator text-red-500"></i> Simulator Profit Bisnis AI
-                    </h3>
-                    <p class="text-xs text-gray-400 mb-8 border-b border-white/10 pb-6">Hitung proyeksi pendapatan berdasarkan biaya API Google Gemini Flash.</p>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-                        <div class="space-y-8">
-                            <div>
-                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Target Jumlah User: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-users">100</span></label>
-                                <input type="range" id="calc-users" min="10" max="5000" step="10" value="100" oninput="calculateProfit()" class="w-full">
-                            </div>
-                            <div>
-                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Biaya Pendaftaran: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-price">Rp 50.000</span></label>
-                                <input type="range" id="calc-price" min="10000" max="1000000" step="5000" value="50000" oninput="calculateProfit()" class="w-full">
-                            </div>
-                            <div>
-                                <label class="flex justify-between text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4">Biaya API per 1M Token: <span class="text-white bg-red-600/20 px-2 py-0.5 rounded border border-red-500/30" id="val-api">Rp 5.000</span></label>
-                                <input type="range" id="calc-api" min="1000" max="25000" step="500" value="5000" oninput="calculateProfit()" class="w-full">
-                            </div>
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        let errMsg = `HTTP ${response.status}: ${errText}`;
+                        try {
+                            const errJson = JSON.parse(errText);
+                            errMsg = errJson.error?.message || errMsg;
+                        } catch(e){}
+                        
+                        const err = new Error(errMsg);
+                        if (response.status >= 400 && response.status < 500) err.isTerminal = true;
+                        throw err;
+                    }
+                    return await response.json();
+                } catch (error) {
+                    if (error.isTerminal || i === retries || (options.signal && options.signal.aborted)) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        };
+
+        const AI = {
+            generateText: async (prompt, base64Image = null, signal = null) => {
+                let parts = [{ text: prompt }];
+                if (base64Image) {
+                    parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
+                }
+                const payload = { contents: [{ parts }] };
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: signal
+                });
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            },
+
+            editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
+                const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
+                const imageParts = imagesArray.map(base64 => ({
+                    inlineData: { mimeType: "image/jpeg", data: base64 }
+                }));
+
+                const payload = {
+                    contents: [{ parts: [ { text: prompt }, ...imageParts ] }],
+                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } 
+                };
+                
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: signal 
+                });
+
+                const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
+                return `data:image/jpeg;base64,${base64}`;
+            }
+        };
+
+        const compressImage = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (event) => {
+                const img = new Image();
+                img.src = event.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800; 
+                    const scaleSize = MAX_WIDTH / img.width;
+                    canvas.width = MAX_WIDTH;
+                    canvas.height = img.height * scaleSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    resolve(dataUrl.split(',')[1]);
+                };
+            };
+        });
+
+        // Ekstraksi frame otomatis dari file video (MP4/WebM)
+        const extractFrameFromVideo = (file) => {
+            return new Promise((resolve, reject) => {
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.playsInline = true;
+                video.muted = true;
+                video.src = URL.createObjectURL(file);
+                
+                video.onloadeddata = () => {
+                    video.currentTime = Math.min(1, video.duration / 2); 
+                };
+                
+                video.onseeked = () => {
+                    const canvas = document.createElement('canvas');
+                    let targetWidth = video.videoWidth;
+                    let targetHeight = video.videoHeight;
+                    if (targetWidth > 800) {
+                        targetHeight = Math.floor(targetHeight * (800 / targetWidth));
+                        targetWidth = 800;
+                    }
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                    URL.revokeObjectURL(video.src);
+                    resolve(base64);
+                };
+                
+                video.onerror = () => reject(new Error("Gagal memuat video"));
+            });
+        };
+
+        const copyToClipboard = async (text) => {
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                return true;
+            } catch (err) { return false; }
+        };
+
+        const downloadImageWithExactRatio = (url, filename, targetRatioStr = "9:16") => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let targetRatio = 9 / 16;
+                if (targetRatioStr === "16:9") targetRatio = 16 / 9;
+                if (targetRatioStr === "1:1") targetRatio = 1;
+
+                const currentRatio = img.width / img.height;
+                let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
+
+                if (currentRatio > targetRatio) {
+                    sourceWidth = img.height * targetRatio;
+                    sourceX = (img.width - sourceWidth) / 2;
+                } else if (currentRatio < targetRatio) {
+                    sourceHeight = img.width / targetRatio;
+                    sourceY = (img.height - sourceHeight) / 2;
+                }
+
+                canvas.width = sourceWidth;
+                canvas.height = sourceHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+                
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/jpeg', 1.0);
+                link.download = filename || 'virexa-render-hq.jpg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+            img.src = url;
+        };
+
+        // ==========================================
+        // KOMPONEN UTAMA
+        // ==========================================
+        function App() {
+            const [activeTab, setActiveTab] = useState('home');
+            
+            const [uiUser, setUiUser] = useState(null);
+            const [isInitializing, setIsInitializing] = useState(true);
+            const [supabaseLoaded, setSupabaseLoaded] = useState(false);
+            const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+
+            // NEW FEATURE: 1. State sinkronisasi profil Admin Panel
+            const [userProfile, setUserProfile] = useState(null);
+
+            useEffect(() => {
+                const initSupabase = setInterval(() => {
+                    if (window.supabase) {
+                        clearInterval(initSupabase);
+                        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                        
+                        supabase.auth.getSession().then(({ data: { session } }) => {
+                            setUiUser(session?.user ?? null);
+                            setIsInitializing(false);
+                        });
+
+                        supabase.auth.onAuthStateChange((_event, session) => {
+                            setUiUser(session?.user ?? null);
+                        });
+                        setSupabaseLoaded(true);
+                    }
+                }, 100);
+                return () => clearInterval(initSupabase);
+            }, []);
+
+            // NEW FEATURE: 2. Listener Real-Time & Auto-Register User Baru ke Admin Panel
+            useEffect(() => {
+                if (!uiUser || !supabaseLoaded) return;
+                
+                const fetchProfile = async () => {
+                    const { data, error } = await supabase.from('users_public').select('*').eq('id', uiUser.id).single();
+                    if (data) {
+                        setUserProfile(data);
+                    } else if (error) {
+                        // Mendaftarkan otomatis pengguna baru agar muncul di Admin Panel
+                        const newProfile = {
+                            id: uiUser.id, email: uiUser.email, name: uiUser.email?.split('@')[0] || 'User',
+                            tier: 'Free', points: 50, status: 'Active', total_gen: 0
+                        };
+                        await supabase.from('users_public').insert([newProfile]);
+                        setUserProfile(newProfile);
+                    }
+                };
+                fetchProfile();
+
+                const profileSub = supabase.channel('user-profile-sync')
+                    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users_public', filter: `id=eq.${uiUser.id}` }, (payload) => {
+                        setUserProfile(payload.new);
+                    }).subscribe();
+
+                return () => { supabase.removeChannel(profileSub); };
+            }, [uiUser, supabaseLoaded]);
+
+            const handleLogout = async () => {
+                if (supabase) await supabase.auth.signOut();
+                setUiUser(null);
+                setUserProfile(null);
+            };
+
+            if (isInitializing || !supabaseLoaded) {
+                return (
+                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center text-white">
+                        <i className="ph ph-spinner animate-spin text-4xl text-red-500 mb-4"></i>
+                        <p className="font-bold tracking-widest uppercase text-xs">Memuat Sistem Virexa...</p>
+                    </div>
+                );
+            }
+
+            if (!uiUser) {
+                return <AuthScreen supabase={supabase} />;
+            }
+
+            // NEW FEATURE: 3. Layar pemblokiran penuh jika status akun dikunci oleh Admin
+            if (userProfile && userProfile.status === 'Locked') {
+                return (
+                    <div className="min-h-screen bg-[#050000] flex flex-col items-center justify-center p-4">
+                        <div className="bg-black/60 backdrop-blur-xl border border-red-900/50 p-8 rounded-3xl max-w-md w-full text-center shadow-[0_0_30px_rgba(220,38,38,0.2)] animate-in fade-in zoom-in-95">
+                            <i className="ph-fill ph-lock-key text-6xl text-red-600 mx-auto mb-4 animate-pulse"></i>
+                            <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-wide">Akses Ditangguhkan</h2>
+                            <p className="text-sm text-gray-400 mb-8">Akun Anda telah dikunci oleh Administrator Virexa. Akses ke studio dan aset dicabut sementara.</p>
+                            <button onClick={handleLogout} className="bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 px-6 rounded-xl w-full shadow-[0_0_15px_rgba(220,38,38,0.3)]">Keluar Akun</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex h-screen overflow-hidden">
+                    <aside className="sidebar flex flex-col h-full shrink-0">
+                        <div className="p-8 mb-4">
+                            <h1 className="text-xl font-black italic tracking-tighter text-white uppercase flex items-center">
+                                <i className="ph-fill ph-sparkle text-red-600 mr-2 text-2xl"></i>VIREXA STUDIO
+                            </h1>
                         </div>
 
-                        <div class="bg-black/60 rounded-3xl p-8 border border-white/10 flex flex-col justify-center text-center shadow-inner">
-                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-4">Proyeksi Laba Bersih</p>
-                            <h1 id="res-profit" class="text-5xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.5)] tracking-tighter">Rp 0</h1>
-                            <div class="mt-8 space-y-2 text-[10px] text-gray-500">
-                                <div class="flex justify-between"><span>Pendapatan Kotor:</span> <span id="res-gross" class="text-white">Rp 0</span></div>
-                                <div class="flex justify-between"><span>Biaya API Google:</span> <span id="res-api-cost" class="text-red-400">Rp 0</span></div>
-                                <div class="flex justify-between"><span>Biaya Server:</span> <span class="text-red-400">Rp 300.000</span></div>
+                        <nav className="flex-1">
+                            <NavItem active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon="ph-squares-four" label="Beranda" />
+                            <NavItem active={activeTab === 'affiliate'} onClick={() => setActiveTab('affiliate')} icon="ph-image" label="Affiliate Studio" />
+                            <NavItem active={activeTab === 'tiktok'} onClick={() => setActiveTab('tiktok')} icon="ph-tiktok-logo" label="TikTok Factory" />
+                            <NavItem active={activeTab === 'finder'} onClick={() => setActiveTab('finder')} icon="ph-magnifying-glass" label="Prompt Finder" />
+                            <NavItem active={activeTab === 'algo'} onClick={() => setActiveTab('algo')} icon="ph-wand" label="Prompt Algoritma" />
+                        </nav>
+
+                        <div className="p-6">
+                            <div className="nav-item mb-4 opacity-50 cursor-default">
+                                <i className="ph ph-history text-lg"></i> Aset Saya
                             </div>
+                            <div className="p-4 glass-panel border-red-900/30 flex items-center justify-between">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-red-800 to-black border border-white/20 flex items-center justify-center shrink-0">
+                                        <i className="ph-fill ph-user text-white"></i>
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <p className="text-xs font-bold text-white truncate">{uiUser?.email?.split('@')[0] || 'Kreator'}</p>
+                                        {/* NEW FEATURE: 4. Menampilkan Tier dan Poin Dinamis dari Admin Panel */}
+                                        <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">{userProfile?.tier || 'Free'} Tier • {userProfile?.points || 0} Poin</p>
+                                    </div>
+                                </div>
+                                <div className="p-2 bg-black/40 rounded-lg border border-white/5 hover:bg-red-600 transition-colors cursor-pointer" onClick={handleLogout}>
+                                    <i className="ph ph-sign-out text-gray-500 hover:text-white transition-colors"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <main className="flex-1 overflow-y-auto p-12 bg-[#050000]">
+                        <div className="max-w-7xl mx-auto">
+                            <div className={activeTab === 'home' ? 'block' : 'hidden'}><HomeView setActiveTab={setActiveTab} /></div>
+                            <div className={activeTab === 'affiliate' ? 'block' : 'hidden'}><AffiliateView /></div>
+                            <div className={activeTab === 'tiktok' ? 'block' : 'hidden'}><TikTokView /></div>
+                            <div className={activeTab === 'finder' ? 'block' : 'hidden'}><FinderView /></div>
+                            <div className={activeTab === 'algo' ? 'block' : 'hidden'}><AlgoView /></div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        function AuthScreen({ supabase }) {
+            const [isLoading, setIsLoading] = useState(false);
+            const [isLoginMode, setIsLoginMode] = useState(true);
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                if (!email || !password) return alert("Email dan password wajib diisi");
+                
+                setIsLoading(true);
+                try {
+                    if (isLoginMode) {
+                        const { error } = await supabase.auth.signInWithPassword({ email, password });
+                        if (error) throw error;
+                    } else {
+                        const { error } = await supabase.auth.signUp({ email, password });
+                        if (error) throw error;
+                        alert("Pendaftaran berhasil! Silakan masuk.");
+                        setIsLoginMode(true);
+                    }
+                } catch (error) {
+                    alert(error.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleGoogleLogin = async () => {
+                setIsLoading(true);
+                try {
+                    const { error } = await supabase.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: { redirectTo: window.location.origin }
+                    });
+                    if (error) throw error;
+                } catch (error) {
+                    alert("Gagal masuk dengan Google: " + error.message);
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-[#050000] flex items-center justify-center p-4 relative overflow-hidden font-sans">
+                    <div className="absolute inset-0 pointer-events-none z-0">
+                        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#4a0404] rounded-full blur-[150px] opacity-40"></div>
+                        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#8a0808] rounded-full blur-[150px] opacity-30"></div>
+                    </div>
+                    
+                    <div className="w-full max-w-md bg-black/60 backdrop-blur-xl border border-white/20 shadow-[0_0_30px_rgba(255,0,0,0.15)] rounded-3xl p-8 relative z-10 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="flex flex-col items-center mb-8">
+                            <i className="ph-fill ph-sparkle text-5xl text-white mb-4 drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]"></i>
+                            <h1 className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-white to-red-500 tracking-tight">VIREXA STUDIO</h1>
+                            <p className="text-red-200/60 text-xs mt-2 font-bold tracking-widest uppercase">Portal Akses Kreator</p>
+                        </div>
+
+                        <form onSubmit={handleAuth} className="space-y-4 flex flex-col items-center">
+                            <input type="email" placeholder="Alamat Email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500" required />
+                            <input type="password" placeholder="Kata Sandi" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-black/80 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-red-500" required />
+                            
+                            <button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.3)] flex items-center justify-center gap-2">
+                                {isLoading ? <i className="ph ph-spinner animate-spin text-xl"></i> : isLoginMode ? "Masuk ke Studio" : "Daftar Akun Baru"}
+                            </button>
+
+                            <button type="button" onClick={() => setIsLoginMode(!isLoginMode)} className="text-xs text-gray-400 hover:text-white transition-colors mt-2">
+                                {isLoginMode ? "Belum punya akun? Daftar di sini" : "Sudah punya akun? Masuk di sini"}
+                            </button>
+
+                            <div className="w-full flex items-center gap-3 my-2 opacity-50">
+                                <div className="flex-1 h-px bg-white/20"></div><span className="text-[10px] text-white">ATAU</span><div className="flex-1 h-px bg-white/20"></div>
+                            </div>
+
+                            <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="w-full bg-white hover:bg-gray-200 text-gray-900 font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-3">
+                                <i className="ph-fill ph-google-logo text-xl text-red-500"></i> Masuk dengan Google
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function NavItem({ active, onClick, icon, label }) {
+            return (
+                <div onClick={onClick} className={`nav-item ${active ? 'active' : ''}`}>
+                    <i className={`${active ? 'ph-fill' : 'ph'} ${icon} text-lg`}></i>
+                    <span className="font-bold">{label}</span>
+                </div>
+            );
+        }
+
+        function HomeView({ setActiveTab }) {
+            return (
+                <div className="space-y-12 animate-in fade-in duration-500">
+                    <header>
+                        <h2 className="text-5xl font-bold text-white leading-tight tracking-tight">Selamat datang di Virexa Studio.</h2>
+                        <p className="text-gray-400 mt-2 text-xl font-medium">Platform Generatif Ultra Realistis.</p>
+                    </header>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatCard icon="ph-clock-counter-clockwise" label="TOTAL ASET" value="0" />
+                        <StatCard icon="ph-image" label="GAMBAR DIBUAT" value="0" />
+                        <StatCard icon="ph-text-t" label="PROMPT DIHASILKAN" value="0" />
+                        <StatCard icon="ph-grid-four" label="PROMPT ALGO" value="0" />
+                    </div>
+                    <div className="pt-8">
+                        <h3 className="text-2xl font-bold text-white mb-8 tracking-wide">Aksi Cepat</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            <QuickActionCard icon="ph-image" title="Affiliate Studio" desc="Render 8 variasi sudut & model." onClick={() => setActiveTab('affiliate')} />
+                            <QuickActionCard icon="ph-lightning" title="TikTok Factory" desc="Otomatisasi 3 Scene & Metadata SEO." onClick={() => setActiveTab('tiktok')} />
+                            <QuickActionCard icon="ph-grid-four" title="Prompt Algoritma Tiktok" desc="Racik script FYP & tagar viral dari fotomu." onClick={() => setActiveTab('algo')} />
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-    </main>
-
-    <script>
-        // ==============================================
-        // 1. OTENTIKASI & KEAMANAN
-        // ==============================================
-        const btnLogin = document.getElementById('btn-login');
-        const passInput = document.getElementById('admin-password');
-        const authOverlay = document.getElementById('auth-overlay');
-
-        if (sessionStorage.getItem('virexa_admin') === 'true') {
-            authOverlay.classList.add('hidden');
+            );
         }
 
-        btnLogin.addEventListener('click', () => {
-            // PASSWORD DEFAULT ADMIN
-            if (passInput.value === 'admin2015') {
-                sessionStorage.setItem('virexa_admin', 'true');
-                authOverlay.classList.add('opacity-0');
-                setTimeout(() => { 
-                    authOverlay.classList.add('hidden'); 
-                    fetchUsers(); 
-                }, 500);
-            } else {
-                document.getElementById('auth-error').classList.remove('hidden');
-                passInput.value = '';
-            }
-        });
-
-        passInput.addEventListener('keypress', (e) => { if(e.key === 'Enter') btnLogin.click(); });
-
-        function logoutAdmin() {
-            sessionStorage.removeItem('virexa_admin');
-            location.reload();
+        function StatCard({ icon, label, value }) {
+            return (
+                <div className="stat-card">
+                    <div className="w-14 h-14 bg-black/60 rounded-2xl flex items-center justify-center border border-white/10 shadow-inner">
+                        <i className={`ph ${icon} text-2xl text-red-600`}></i>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">{label}</p>
+                        <p className="text-3xl font-black text-white mt-0.5">{value}</p>
+                    </div>
+                </div>
+            );
         }
 
-        // ==============================================
-        // 2. INTEGRASI SUPABASE (DATABASE)
-        // ==============================================
-        const SUPABASE_URL = 'https://pgefqhpomzjbqbqobkta.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_YO3yI5L3PSXl2X9VXhwRcQ_OID1tZdo';
-        
-        // PENTING: Gunakan 'supabaseAdmin' agar tidak konflik dengan global 'supabase' dari pustaka CDN
-        const supabaseAdmin = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        function QuickActionCard({ icon, title, desc, onClick }) {
+            return (
+                <button onClick={onClick} className="quick-card group">
+                    <div className="absolute top-0 left-0 w-24 h-full bg-gradient-to-r from-red-600/10 to-transparent opacity-40"></div>
+                    <i className={`ph-fill ${icon} text-4xl mb-8 text-red-600 relative z-10 transition-transform group-hover:scale-110`}></i>
+                    <div className="relative z-10">
+                        <h4 className="text-xl font-bold text-white mb-2 uppercase tracking-tighter">{title}</h4>
+                        <p className="text-[11px] text-gray-500 font-bold leading-relaxed uppercase tracking-wider">{desc}</p>
+                    </div>
+                </button>
+            );
+        }
 
-        async function fetchUsers() {
-            const { data, error } = await supabaseAdmin.from('users_public').select('*').order('created_at', { ascending: false });
-            if (data) {
-                const tbody = document.getElementById('usersTableBody');
-                tbody.innerHTML = '';
-                data.forEach(user => {
-                    const isLocked = user.status === 'Locked';
-                    tbody.innerHTML += `
-                        <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td class="p-4">
-                                <div class="font-bold text-white uppercase tracking-tighter">${user.name || 'Anonymous Kreator'}</div>
-                                <div class="text-[10px] text-gray-500 font-mono">${user.email}</div>
-                            </td>
-                            <td class="p-4">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${user.tier === 'Pro' ? 'bg-red-600 text-white' : 'bg-gray-800 text-gray-400'} border border-white/10 uppercase">
-                                    ${user.tier}
-                                </span>
-                            </td>
-                            <td class="p-4 font-mono text-red-500 font-bold">${user.points}</td>
-                            <td class="p-4">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="w-1.5 h-1.5 rounded-full ${isLocked ? 'bg-red-600 animate-pulse' : 'bg-green-500 shadow-[0_0_5px_#22c55e]'}"></span>
-                                    <span class="text-xs ${isLocked ? 'text-red-500' : 'text-gray-300'}">${user.status}</span>
+        function AffiliateView() {
+            const [prodFile, setProdFile] = useState(null);
+            const [prodPreview, setProdPreview] = useState(null);
+            const [modelFile, setModelFile] = useState(null);
+            const [modelPreview, setModelPreview] = useState(null);
+            const [storeName, setStoreName] = useState("");
+            const [prompt, setPrompt] = useState("");
+            const [style, setStyle] = useState("Studio");
+            const [ratio, setRatio] = useState("9:16");
+            const [results, setResults] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [progressMsg, setProgressMsg] = useState("");
+
+            const [progressPct, setProgressPct] = useState(0); 
+            const abortControllerRef = useRef(null);
+
+            const handleFile = (e, type) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        if (type === 'prod') { setProdFile(file); setProdPreview(reader.result); }
+                        else { setModelFile(file); setModelPreview(reader.result); }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleStop = () => {
+                if (abortControllerRef.current) abortControllerRef.current.abort();
+                setLoading(false);
+                setProgressMsg("Proses dihentikan manual!");
+                setProgressPct(0);
+            };
+
+            const handleGen = async () => {
+                if (!prodFile || !modelFile) return alert("PENTING: Unggah foto Produk & Wajah Model!");
+                setLoading(true); setResults([]);
+                setProgressPct(0); 
+                
+                abortControllerRef.current = new AbortController(); 
+                const signal = abortControllerRef.current.signal; 
+
+                try {
+                    setProgressMsg("Mengecilkan Gambar (Anti-Error 400)...");
+                    setProgressPct(5); 
+                    const b64Prod = await compressImage(prodFile);
+                    const b64Model = await compressImage(modelFile);
+                    setProgressPct(10); 
+
+                    const poses = ["Walking forward dynamically", "Close up portrait face", "Holding product professionally", "Sitting elegantly in modern background", "Commercial studio lighting", "Macro detail on product", "Outdoor casual lifestyle", "Luxury fashion presentation"];
+                    
+                    for (let i = 0; i < poses.length; i++) {
+                        if (signal.aborted) throw new Error("Proses dihentikan pengguna"); 
+
+                        setProgressMsg(`Merender Pose ${i + 1} dari 8...`);
+                        setProgressPct(10 + Math.round(((i + 1) / poses.length) * 90)); 
+                        
+                        const branding = storeName ? ` . MANDATORY: Include a glowing aesthetic neon sign that clearly spells '${storeName.toUpperCase()}' in the background.` : '';
+                        
+                        const strictPrompt = `[CRITICAL MANDATE: EXACT ${ratio} PORTRAIT]. High-end commercial photography. Combine Product from Reference 1 and Model from Reference 2. Pose: ${poses[i]}. EXTREMELY STRICT RULE: DO NOT alter the model's identity, race, facial features, or specific clothing style (e.g., if wearing hijab in reference 2, MUST wear hijab in output). Keep the face exactly identical to Reference 2.${branding}`;
+                        
+                        const res = await AI.editImage([b64Prod, b64Model], strictPrompt, ratio, signal); 
+                        setResults(prev => [...prev, res]);
+                    }
+                    setProgressPct(100); 
+                } catch (e) { 
+                    if (e.message !== "Proses dihentikan pengguna") alert("Gagal: " + e.message); 
+                }
+                setLoading(false); setProgressMsg(""); setProgressPct(0);
+            };
+
+            return (
+                <div className="space-y-10 animate-in fade-in">
+                    <header>
+                        <h2 className="text-4xl font-black text-white uppercase flex items-center tracking-tighter">
+                            <i className="ph-fill ph-image text-red-600 mr-4"></i>Affiliate Image Studio
+                        </h2>
+                        <p className="text-gray-500 mt-2 font-medium">Sistem cerdas merender 8 pose promosi interaktif model secara otomatis.</p>
+                    </header>
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                        <div className="lg:col-span-5 space-y-8">
+                            <div className="glass-panel p-6 border-white/5 shadow-xl relative">
+                                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-1">1. Produk Asli</label>
+                                <p className="text-[9px] text-gray-600 mb-4 font-bold uppercase tracking-widest">Basis bentuk barang.</p>
+                                <div className="upload-placeholder h-48 border-dashed border-2">
+                                    {prodPreview ? (
+                                        <>
+                                            <img src={prodPreview} />
+                                            <div className="delete-overlay" onClick={() => {setProdFile(null); setProdPreview(null);}}><i className="ph-bold ph-trash mr-1"></i>Hapus</div>
+                                        </>
+                                    ) : (
+                                        <div className="relative w-full h-full flex flex-col items-center justify-center cursor-pointer group">
+                                            <i className="ph ph-package text-4xl text-gray-700 group-hover:text-red-600 transition-colors"></i>
+                                            <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest">Pilih File Produk</p>
+                                            <input type="file" onChange={(e) => handleFile(e, 'prod')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                        </div>
+                                    )}
                                 </div>
-                            </td>
-                            <td class="p-4 text-right">
-                                <button class="bg-white/5 hover:bg-white/20 p-2 rounded-lg text-gray-400 hover:text-white border border-white/5 transition-all">
-                                    <i class="ph ph-pencil-simple text-sm"></i>
+                            </div>
+                            <div className="glass-panel p-6 border-white/5 shadow-xl relative">
+                                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-1">2. Wajah Model</label>
+                                <p className="text-[9px] text-gray-600 mb-4 font-bold uppercase tracking-widest">Padukan rupa model mematikan produk.</p>
+                                <div className="upload-placeholder h-48 border-dashed border-2">
+                                    {modelPreview ? (
+                                        <>
+                                            <img src={modelPreview} />
+                                            <div className="delete-overlay" onClick={() => {setModelFile(null); setModelPreview(null);}}><i className="ph-bold ph-trash mr-1"></i>Hapus</div>
+                                        </>
+                                    ) : (
+                                        <div className="relative w-full h-full flex flex-col items-center justify-center cursor-pointer group">
+                                            <i className="ph ph-user-focus text-4xl text-gray-700 group-hover:text-red-600 transition-colors"></i>
+                                            <p className="mt-3 text-[10px] font-black text-gray-600 uppercase tracking-widest">Pilih File Model</p>
+                                            <input type="file" onChange={(e) => handleFile(e, 'model')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="lg:col-span-7">
+                            <div className="glass-panel p-8 space-y-8">
+                                <div>
+                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-3">3. Deskripsi Promosi (Opsional)</label>
+                                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="input-area h-40 font-medium" placeholder="Contoh: 'Tampilkan produk ini dengan kesan ceria dan warna latar senada...'"></textarea>
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-3">4. Nama Toko (Opsional)</label>
+                                    <input value={storeName} onChange={(e) => setStoreName(e.target.value)} className="input-area font-bold uppercase" placeholder="CTH: TOKO KOSMETIK VIREXA" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-8">
+                                    <div><label className="text-[10px] font-black text-gray-600 block mb-3 uppercase tracking-widest">Style</label><div className="flex gap-2">{['Studio', 'Lifestyle', 'Minimalist'].map(s => <button key={s} onClick={() => setStyle(s)} className={`toggle-btn flex-1 py-3 ${style === s ? 'active' : ''}`}>{s}</button>)}</div></div>
+                                    <div><label className="text-[10px] font-black text-gray-600 block mb-3 uppercase tracking-widest">Aspect Ratio</label><div className="flex gap-2">{['1:1', '16:9', '9:16'].map(r => <button key={r} onClick={() => setRatio(r)} className={`toggle-btn flex-1 py-3 ${ratio === r ? 'active' : ''}`}>{r}</button>)}</div></div>
+                                </div>
+                                
+                                <div className="flex gap-4 items-end mt-4">
+                                    <button onClick={handleGen} disabled={loading} className="btn-red py-5 font-black text-lg shadow-[0_0_20px_rgba(220,38,38,0.2)] relative overflow-hidden flex-1">
+                                        {loading && <div className="absolute left-0 top-0 h-full bg-red-900/80 transition-all duration-300" style={{ width: `${progressPct}%` }}></div>}
+                                        <span className="relative z-10 flex items-center justify-center gap-2">
+                                            {loading ? <i className="ph ph-spinner animate-spin text-xl"></i> : ""}
+                                            {loading ? `${progressMsg} (${progressPct}%)` : "Generate 8 Pose Komersial"}
+                                        </span>
+                                    </button>
+
+                                    {loading && (
+                                        <div className="flex flex-col items-center justify-end animate-in fade-in">
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Stop</span>
+                                            <button onClick={handleStop} className="bg-red-900/50 hover:bg-red-600 border border-red-500/50 text-red-400 hover:text-white p-4 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.4)]">
+                                                <i className="ph-fill ph-stop text-2xl"></i>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {results.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6 pt-10">
+                            {results.map((img, i) => (
+                                <div key={i} className="glass-panel overflow-hidden border-white/10 group shadow-2xl relative">
+                                    <img src={img} className="w-full aspect-[9/16] object-cover transition-transform duration-500 group-hover:scale-105" />
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                        <button onClick={() => downloadImageWithExactRatio(img, `virexa-${i+1}.jpg`, ratio)} className="bg-red-600 p-4 rounded-full text-white shadow-xl hover:scale-110 transition-transform"><i className="ph-bold ph-download-simple text-2xl"></i></button>
+                                    </div>
+                                    <div className="p-3 bg-black flex justify-between px-4 border-t border-white/5 uppercase"><span className="text-[9px] font-black text-gray-500">Pose {i+1}</span><span className="text-[9px] font-black text-red-500">PRO HQ</span></div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        function TikTokView() {
+            const [file, setFile] = useState(null);
+            const [preview, setPreview] = useState(null);
+            const [brand, setBrand] = useState("");
+            const [loading, setLoading] = useState(false);
+            const [data, setData] = useState(null);
+            const [msg, setMsg] = useState("");
+
+            const [scriptType, setScriptType] = useState("");
+            const [customScript, setCustomScript] = useState("");
+
+            const [progressPct, setProgressPct] = useState(0);
+            const abortControllerRef = useRef(null);
+
+            const handleStop = () => {
+                if (abortControllerRef.current) abortControllerRef.current.abort();
+                setLoading(false);
+                setMsg("Proses dihentikan manual!");
+                setProgressPct(0);
+            };
+
+            const handleGen = async () => {
+                if(!file) return alert("Upload gambar produk terlebih dahulu!");
+                setLoading(true); setData(null); setProgressPct(0); 
+                
+                abortControllerRef.current = new AbortController(); 
+                const signal = abortControllerRef.current.signal; 
+
+                try {
+                    setMsg("Menyusun Naskah...");
+                    setProgressPct(10); 
+                    const b64 = await compressImage(file);
+                    setProgressPct(20); 
+                    
+                    const scriptInstruction = customScript.trim() ? `\nInstruksi Gaya Naskah:\n${customScript}` : "";
+                    
+                    const promptText = `[LANGKAH 1: ANALISIS GAMBAR MENDALAM]
+Perhatikan gambar dengan sangat teliti. Identifikasi dan ingat: bentuk, warna, komponen produk, fitur/kegunaan yang terlihat, serta jika ada model (gender, pakaian, ekspresi, lingkungan).
+
+[LANGKAH 2: INTEGRASI NASKAH & GAMBAR]
+Padukan secara sempurna hasil analisis gambar di Langkah 1 dengan kerangka instruksi naskah di bawah ini. Buat agar dialog dan visual benar-benar relevan dengan apa yang ada di dalam gambar aslinya.
+Merek/Nama Produk: ${brand || "Produk dalam gambar (Sebutkan berdasarkan analisis visual)"}
+${scriptInstruction || "Buatkan naskah TikTok 3 scene viral (Hook, Value, CTA)."}
+
+WAJIB: Pose model atau sudut pandang produk HARUS BERBEDA secara dinamis dan estetis di setiap scene (contoh: Scene 1 close-up muka, Scene 2 interaksi produk/full body, Scene 3 angle kreatif).
+
+[OUTPUT WAJIB: JSON MURNI]
+Keluarkan HANYA format JSON valid tanpa markdown/teks tambahan. 
+Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{"visual":"bahasa inggris detail. STRICTLY ONLY ONE HUMAN MODEL IN THE FRAME. Wajib masukkan instruksi pose yang BERBEDA dari scene lainnya","dialog":"bahasa indonesia natural","paragraf":"Paragraf deskriptif rinci dalam Bahasa Inggris menceritakan aksi di scene ini untuk di-copy ke AI Video Generator luar"}]}`;
+                    
+                    const res = await AI.generateText(promptText, b64, signal); 
+                    
+                    let parsed;
+                    try {
+                        const cleanJson = res.replace(/```json/gi, '').replace(/```/g, '').trim();
+                        const startIndex = cleanJson.indexOf('{');
+                        const endIndex = cleanJson.lastIndexOf('}');
+                        if (startIndex === -1 || endIndex === -1) throw new Error("JSON tidak ditemukan");
+                        parsed = JSON.parse(cleanJson.substring(startIndex, endIndex + 1));
+                    } catch (err) {
+                        throw new Error("Gagal mengurai respons struktur naskah AI. Silakan klik Generate lagi.");
+                    }
+
+                    setProgressPct(40); 
+                    
+                    let scenesWithImages = { ...parsed, scenes: parsed.scenes.map(s => ({ ...s, url: null })) };
+                    setData(scenesWithImages);
+
+                    for (let i = 0; i < parsed.scenes.length; i++) {
+                        if (signal.aborted) throw new Error("Proses dihentikan pengguna"); 
+                        
+                        setMsg(`Merender Scene ${i+1}...`);
+                        setProgressPct(40 + Math.round(((i + 1) / parsed.scenes.length) * 60)); 
+                        
+                        const imgRes = await AI.editImage([b64], `[RATIO 9:16] ${parsed.scenes[i].visual}. CRITICAL MANDATE: ONLY ONE PERSON/MODEL ALLOWED. NO DUPLICATE CLONES.`, "9:16", signal); 
+                        scenesWithImages.scenes[i].url = imgRes;
+                        setData({ ...scenesWithImages });
+                    }
+                    setProgressPct(100); 
+                } catch (e) { 
+                    if (e.message !== "Proses dihentikan pengguna") alert("Gagal: " + e.message); 
+                }
+                setLoading(false); setMsg(""); setProgressPct(0);
+            };
+
+            return (
+                <div className="space-y-10 animate-in fade-in">
+                    <h2 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center"><i className="ph-fill ph-tiktok-logo text-red-600 mr-4"></i>TikTok Factory</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div className="glass-panel p-8 space-y-6 relative">
+                            <div className="hidden bg-red-950/20 border border-red-900/30 p-4 rounded-xl mb-2">
+                                <p className="text-[11px] text-gray-300 leading-relaxed">
+                                    <span className="font-bold text-red-500 uppercase tracking-widest block mb-1"><i className="ph-fill ph-info"></i> Instruksi:</span>
+                                    Pastikan foto produk terlihat jelas. AI akan menganalisis produk Anda dan merakit Visual, Metadata, serta 3 Naskah Video secara otomatis.
+                                </p>
+                            </div>
+
+                            <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest mb-1">1. Upload Produk</label>
+                            <div className="upload-placeholder h-48 border-dashed border-white/20">
+                                {preview ? (
+                                    <>
+                                        <img src={preview} /><div className="delete-overlay" onClick={() => {setFile(null); setPreview(null);}}><i className="ph-bold ph-trash mr-1"></i>Hapus</div>
+                                    </>
+                                ) : (
+                                    <div className="text-center group cursor-pointer"><i className="ph ph-upload-simple text-4xl text-gray-700 group-hover:text-red-600 transition-colors"></i><p className="mt-4 text-[10px] font-black text-gray-600 uppercase">Upload Media Produk</p><input type="file" onChange={(e) => {setFile(e.target.files[0]); setPreview(URL.createObjectURL(e.target.files[0]));}} className="absolute inset-0 opacity-0 cursor-pointer" /></div>
+                                )}
+                            </div>
+                            <input value={brand} onChange={e => setBrand(e.target.value)} className="input-area font-bold uppercase" placeholder="Nama Produk (Opsional)..." />
+                            
+                            <div className="space-y-3 mt-2">
+                                <label className="block text-[11px] font-black text-gray-500 uppercase tracking-widest">3. Tipe Naskah / Instruksi</label>
+                                <select 
+                                    value={scriptType} 
+                                    onChange={(e) => {
+                                        setScriptType(e.target.value);
+                                        setCustomScript(e.target.value);
+                                    }} 
+                                    className="w-full bg-black/80 border border-white/30 rounded-xl p-3.5 text-sm text-white focus:outline-none focus:border-red-500 transition-all font-medium"
+                                >
+                                    <option value="">-- Bebas (Ditentukan AI) --</option>
+                                    <option value={`🎬 NASKAH VIDEO TIKTOK AFFILIATE (– REVIEW PRODUK)   
+Buatkan versi durasi 21 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3  
+pragrap bahasa inggris dialog bahasa indonesia.  
+Dibuat di AI GENERATOR.  
+   
+Tambahkan di setiap prompt semua video:  
+Natural blinking.  
+Skin texture realistic.  
+Hand gesture natural.  
+Subtle breathing movement.  
+Real Indonesian environment.  
+Smartphone camera realism.  
+  
+🎵 Musik: fyf ⏱ Jam Posting : Fyp  
+Durasi total 21 detik (3 scene x 7 detik),  
+gaya natural seperti rekam story.  
+Aman pedoman TikTok.  
+Rasio :9:16.  
+Versi : vartikal tiktok  
+Video terakhir klik link bawah video ya?  
+Tex Layar Detail Produk.   
+Hindari:  
+❌ wajib beli sekarang  
+❌ pasti murah banget  
+❌ paling terbaik  
+❌ Nyebut Harga  
+yang mendeteksi pelanggaran TikTok Shop.  
+  
+Judul, Kata Kunci TikTok, Caption  5 tagar yang relevan  
+  
+1️⃣ Hook (0–3 detik) — HOOK (3–7 detik).  
+2️⃣ KELEBDEMO / KELEBIHAN (7–14 detik)  
+3️⃣ HASIL + CTA/ Engagement (14–21 detik).  
+  
+Wajib Menyebut Merek Produk.  Produk tidak berlebihan)  Buatkan Dialog jangan terlalu formal buat yang biasa layaknya manusia.
+Buatkan versi lebih banyakview jutaan. 
+Model  : Wanita/Pria  
+Dialog :  Wanita/Pria`}>Naskah 1: Review Produk Affiliate (Durasi 21s)</option>
+                                    <option value={`🎬 NASKAH VIDEO TIKTOK AFFILIATE (– KELEBIHAN PRODUK)   
+Buatkan versi durasi 21 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3  
+pragrap bahasa inggris dialog bahasa indonesia.  
+Dibuat di AI GENERATOR.  
+   
+Tambahkan di setiap prompt semua video:  
+Natural blinking.  
+Skin texture realistic.  
+Hand gesture natural.  
+Subtle breathing movement.  
+Real Indonesian environment.  
+Smartphone camera realism.  
+  
+🎵 Musik: fyf ⏱ Jam Posting : Fyp  
+Durasi total 21 detik (3 scene x 7 detik),  
+gaya natural seperti rekam story.  
+Aman pedoman TikTok.  
+Rasio :9:16.  
+Versi : vartikal tiktok  
+Video terakhir klik link bawah video ya?  
+Tex Layar Detail Produk.   
+Hindari:  
+❌ wajib beli sekarang  
+❌ pasti murah banget  
+❌ paling terbaik  
+❌ Nyebut Harga  
+yang mendeteksi pelanggaran TikTok Shop.  
+  
+Judul, Kata Kunci TikTok, Caption  5 tagar yang relevan  
+  
+1️⃣ Hook (0–3 detik) — HOOK + MASALAH (3–7 detik).  
+2️⃣ KELEBIHAN PRODUK (VALUE UTAMA) (7–14 detik)  
+3️⃣ KELEBIHAN TAMBAHAN + CTA/ Engagement (14–21 detik).  
+  
+Wajib Menyebut Merek Produk.  Produk tidak berlebihan)  Buatkan Dialog jangan terlalu formal buat yang biasa layaknya manusia.
+Buatkan versi lebih banyakview jutaan. 
+Model  : Wanita  
+Dialog :  Wanita`}>Naskah 2: Kelebihan Produk Affiliate (Durasi 21s)</option>
+                                    <option value={`🎬 NASKAH VIDEO TIKTOK AFFILIATE (BEFORE → PROSES → AFTER) (PRODUK )  
+Buatkan versi durasi 21 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3  
+pragrap bahasa inggris dialog bahasa indonesia.  
+Dibuat di AI GENERATOR.  
+   
+Tambahkan di setiap prompt semua video:  
+Natural blinking.  
+Skin texture realistic.  
+Hand gesture natural.  
+Subtle breathing movement.  
+Real Indonesian environment.  
+Smartphone camera realism.  
+  
+🎵 Musik: fyf ⏱ Jam Posting : Fyp  
+Durasi total 21 detik (3 scene x 7 detik),  
+gaya natural seperti rekam story.  
+Aman pedoman TikTok.  
+Rasio :9:16.  
+Versi : vartikal tiktok  
+Video terakhir klik link bawah video ya?  
+Tex Layar Detail Produk.   
+Hindari:  
+❌ wajib beli sekarang  
+❌ pasti murah banget  
+❌ paling terbaik  
+❌ Nyebut Harga  
+yang mendeteksi pelanggaran TikTok Shop.  
+  
+Judul, Kata Kunci TikTok, Caption  5 tagar yang relevan  
+  
+1️⃣ Hook (0–3 detik) — BEFORE + HOOK (3–7 detik).  
+2️⃣ PROSES PEMAKAIAN (7–14 detik)  
+3️⃣ AFTER + CTA/ Engagement (14–21 detik).  
+  
+Wajib Menyebut Merek Produk.  Produk tidak berlebihan)  Buatkan Dialog jangan terlalu formal buat yang biasa layaknya manusia.
+Buatkan versi lebih banyakview jutaan. 
+Model  : Wanita  
+Dialog :  Wanita`}>Naskah 3: Before-Proses-After (Durasi 21s)</option>
+                                    <option value={`🎬 NASKAH VIDEO TIKTOK AFFILIATE- DEMO (PRODUK )  
+Buatkan versi durasi 21 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3  
+pragrap bahasa inggris dialog bahasa indonesia.  
+Dibuat di AI GENERATOR.  
+   
+Tambahkan di setiap prompt semua video:  
+Natural blinking.  
+Skin texture realistic.  
+Hand gesture natural.  
+Subtle breathing movement.  
+Real Indonesian environment.  
+Smartphone camera realism.  
+  
+🎵 Musik: fyf ⏱ Jam Posting : Fyp  
+Durasi total 21 detik (3 scene x 7 detik),  
+gaya natural seperti rekam story.  
+Aman pedoman TikTok.  
+Rasio :9:16.  
+Versi : vartikal tiktok  
+Video terakhir klik link bawah video ya?  
+Tex Layar Detail Produk.   
+Hindari:  
+❌ wajib beli sekarang  
+❌ pasti murah banget  
+❌ paling terbaik  
+❌ Nyebut Harga  
+yang mendeteksi pelanggaran TikTok Shop.  
+  
+Judul, Kata Kunci TikTok, Caption  5 tagar yang relevan  
+  
+1️⃣ Hook (0–3 detik) — WAJIB KUAT Masalah / Ketertarikan (3–7 detik).  
+2️⃣ DEMO FITUR PRODUK (7–14 detik)  
+3️⃣ TESTIMONI + CTA / Engagement (14–21 detik).  
+  
+Wajib Menyebut Merek Produk.  Produk tidak berlebihan)  Buatkan Dialog jangan terlalu formal buat yang biasa layaknya manusia.
+Buatkan versi lebih banyakview jutaan. 
+Model  : Wanita  
+Dialog :  Wanita`}>Naskah 4: Demo Produk Affiliate (Durasi 21s)</option>
+                                    <option value={`🎬 NASKAH VIDEO TIKTOK AFFILIATE- MASALAH  (PRODUK )  
+Buatkan versi durasi 21 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3  
+pragrap bahasa inggris dialog bahasa indonesia.  
+Dibuat di AI GENERATOR.  
+   
+Tambahkan di setiap prompt semua video:  
+Natural blinking.  
+Skin texture realistic.  
+Hand gesture natural.  
+Subtle breathing movement.  
+Real Indonesian environment.  
+Smartphone camera realism.  
+  
+🎵 Musik: fyf ⏱ Jam Posting : Fyp  
+Durasi total 21 detik (3 scene x 7 detik),  
+gaya natural seperti rekam story.  
+Aman pedoman TikTok.  
+Rasio :9:16.  
+Versi : vartikal tiktok  
+Video terakhir klik link bawah video ya?  
+Tex Layar Detail Produk.   
+Hindari:  
+❌ wajib beli sekarang  
+❌ pasti murah banget  
+❌ paling terbaik  
+❌ Nyebut Harga  
+yang mendeteksi pelanggaran TikTok Shop.  
+  
+Judul, Kata Kunci TikTok, Caption  5 tagar yang relevan  
+  
+1️⃣ Hook (0–3 detik) — WAJIB KUAT Masalah / Ketertarikan (3–7 detik).  
+2️⃣ SOLUSI PRODUK  (7–14 detik) Produk + fitur.  
+3️⃣ BUKTI/ CTA / Engagement (14–21 detik).  
+  
+Wajib Menyebut Merek Produk.  Produk tidak berlebihan)  Buatkan Dialog jangan terlalu formal buat yang biasa layaknya manusia.
+Buatkan versi lebih banyakview jutaan. 
+Model  : Wanita  
+Dialog :  Wanita`}>Naskah 5: Masalah & Solusi Produk (Durasi 21s)</option>
+                                </select>
+                                <textarea 
+                                    value={customScript} 
+                                    onChange={(e) => setCustomScript(e.target.value)} 
+                                    className="w-full bg-black/80 border border-white/30 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-red-500 transition-all h-56 resize-none font-mono text-[11px]" 
+                                    placeholder="Atau ketik instruksi naskah tambahan Anda di sini..."
+                                ></textarea>
+                            </div>
+
+                            <div className="flex gap-4 items-end mt-2">
+                                <button onClick={handleGen} disabled={loading} className="btn-red py-4 relative overflow-hidden flex-1 shadow-[0_0_20px_rgba(220,38,38,0.2)]">
+                                    {loading && <div className="absolute left-0 top-0 h-full bg-red-900/80 transition-all duration-300" style={{ width: `${progressPct}%` }}></div>}
+                                    <span className="relative z-10 flex items-center justify-center gap-2">
+                                        {loading ? <i className="ph ph-spinner animate-spin text-xl"></i> : ""}
+                                        {loading ? `${msg} (${progressPct}%)` : "Generate Kampanye"}
+                                    </span>
                                 </button>
-                            </td>
-                        </tr>
-                    `;
-                });
-                const dashTotal = document.getElementById('dash-total-users');
-                if (dashTotal) dashTotal.innerText = data.length;
-            }
+
+                                {loading && (
+                                    <div className="flex flex-col items-center justify-end animate-in fade-in">
+                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Stop</span>
+                                        <button onClick={handleStop} className="bg-red-900/50 hover:bg-red-600 border border-red-500/50 text-red-400 hover:text-white p-3.5 rounded-xl transition-all shadow-[0_0_15px_rgba(220,38,38,0.4)]">
+                                            <i className="ph-fill ph-stop text-xl"></i>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-6 max-h-[700px] overflow-y-auto pr-4">
+                            {data && data.judul && (
+                                <div className="naskah-box flex flex-col gap-4 border-white/5 relative group bg-gradient-to-br from-[#1a0505] to-black shadow-xl">
+                                    <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                                        <h3 className="text-sm font-bold text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">Metadata Siap Posting</h3>
+                                        <button onClick={() => copyToClipboard(`Judul: ${data.judul}\nKeyword: ${data.keyword}\n\n${data.caption}\n\n${data.tagar}`).then(ok => ok && alert('Metadata tersalin'))} className="text-gray-500 hover:text-white transition-colors flex items-center gap-2 text-[10px] uppercase font-bold border border-white/20 px-3 py-1.5 rounded-lg bg-black/50"><i className="ph-bold ph-copy text-sm"></i> Salin Semua</button>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Judul Konten</span>
+                                            <p className="text-white font-bold text-sm bg-black/50 p-3 rounded-lg border border-white/5">{data.judul}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Keyword Pencarian TikTok</span>
+                                            <p className="text-red-400 font-mono text-xs bg-black/50 p-3 rounded-lg border border-white/5">{data.keyword || "AI Generated Keywords..."}</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Caption Promosi</span>
+                                        <p className="text-gray-300 text-xs leading-relaxed bg-black/50 p-3 rounded-lg border border-white/5">{data.caption}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Hashtag (Tagar) Viral</span>
+                                        <p className="text-blue-400 font-bold text-xs bg-black/50 p-3 rounded-lg border border-white/5">{data.tagar}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {data && data.scenes.map((s, i) => (
+                                <div key={i} className="naskah-box flex flex-col items-center gap-6 border-white/5 relative group">
+                                    <div className="w-48 shrink-0 aspect-[9/16] bg-black rounded-lg border border-white/10 overflow-hidden relative shadow-lg">
+                                        {s.url ? <img src={s.url} className="w-full h-full object-cover" /> : <div className="h-full flex items-center justify-center"><i className="ph ph-spinner animate-spin text-red-600 text-3xl"></i></div>}
+                                        {s.url && <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all"><button onClick={() => downloadImageWithExactRatio(s.url, `scene-${i+1}.jpg`, "9:16")} className="p-3 bg-red-600 rounded-full text-white shadow-xl hover:scale-110 transition-transform"><i className="ph-bold ph-download-simple text-xl"></i></button></div>}
+                                    </div>
+                                    
+                                    <div className="flex-1 w-full flex flex-col text-center">
+                                        <div className="flex justify-between items-center w-full mb-3 border-b border-white/10 pb-3">
+                                            <p className="text-red-500 font-black text-xs uppercase tracking-widest">Scene {i+1}</p>
+                                            <button onClick={() => copyToClipboard(`[VISUAL PROMPT]\n${s.visual}\n\n[PARAGRAF ENGLISH]\n${s.paragraf}\n\n[DIALOG]\n${s.dialog}`).then(ok => ok && alert('Salin sukses'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                        </div>
+                                        
+                                        <div className="space-y-3 text-left w-full">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">1. Visual Prompt (AI Generator)</span>
+                                                <p className="text-gray-300 font-mono text-[11px] leading-relaxed bg-black/50 p-2.5 rounded border border-white/5">{s.visual}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">2. Paragraf (English Video Prompt)</span>
+                                                <p className="text-gray-400 font-mono text-[11px] leading-relaxed bg-black/50 p-2.5 rounded border border-white/5">{s.paragraf || "Generating narrative..."}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest block mb-1">3. Dialog (Indonesia)</span>
+                                                <p className="text-white font-bold italic text-sm leading-relaxed p-2.5">"{s.dialog}"</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
-        // ==============================================
-        // 3. NAVIGASI DASHBOARD
-        // ==============================================
-        function switchView(view) {
-            document.querySelectorAll('.nav-item').forEach(i => {
-                i.classList.remove('active', 'text-white');
-                i.classList.add('text-gray-400');
-            });
-            const activeNav = document.getElementById('nav-'+view);
-            if (activeNav) {
-                activeNav.classList.add('active', 'text-white');
-                activeNav.classList.remove('text-gray-400');
-            }
+        function PromptFinderView() {
+            const [preview, setPreview] = useState(null);
+            const [b64, setB64] = useState("");
+            const [loading, setLoading] = useState(false);
+            const [res, setRes] = useState("");
             
-            document.getElementById('view-dashboard').classList.add('view-hidden');
-            document.getElementById('view-users').classList.add('view-hidden');
-            document.getElementById('view-calculator').classList.add('view-hidden');
-            
-            const targetView = document.getElementById('view-'+view);
-            if (targetView) targetView.classList.remove('view-hidden');
-            
-            const titles = { dashboard: "Dashboard Overview", users: "Manajemen Kreator", calculator: "Kalkulator Bisnis" };
-            const descs = { dashboard: "Status sistem real-time", users: "Kelola status dan poin pengguna", calculator: "Simulator laba bisnis AI" };
-            
-            document.getElementById('header-title').innerText = titles[view];
-            document.getElementById('header-desc').innerText = descs[view];
-        }
+            const [isVideo, setIsVideo] = useState(false);
+            const [language, setLanguage] = useState("English");
+            const [targetLocation, setTargetLocation] = useState("Default");
 
-        // ==============================================
-        // 4. LOGIKA KALKULATOR PROFIT
-        // ==============================================
-        function calculateProfit() {
-            const users = parseInt(document.getElementById('calc-users').value);
-            const price = parseInt(document.getElementById('calc-price').value);
-            const apiCost = parseInt(document.getElementById('calc-api').value);
+            const [progressPct, setProgressPct] = useState(0);
 
-            document.getElementById('val-users').innerText = users.toLocaleString();
-            document.getElementById('val-price').innerText = 'Rp ' + price.toLocaleString();
-            document.getElementById('val-api').innerText = 'Rp ' + apiCost.toLocaleString();
-
-            const grossRevenue = users * price;
-            // Asumsi: Rata-rata 100 render per user per bulan
-            const totalApiCost = (users * 100 * (apiCost / 1000000)); 
-            const serverFixedCost = 300000;
-            const netProfit = grossRevenue - totalApiCost - serverFixedCost;
-
-            document.getElementById('res-gross').innerText = 'Rp ' + grossRevenue.toLocaleString();
-            document.getElementById('res-api-cost').innerText = 'Rp ' + Math.ceil(totalApiCost).toLocaleString();
-            document.getElementById('res-profit').innerText = 'Rp ' + Math.floor(netProfit).toLocaleString();
-            
-            const profitEl = document.getElementById('res-profit');
-            if(netProfit < 0) {
-                profitEl.className = "text-5xl font-black text-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)] tracking-tighter";
-            } else {
-                profitEl.className = "text-5xl font-black text-green-400 drop-shadow-[0_0_15px_rgba(74,222,128,0.5)] tracking-tighter";
-            }
-        }
-
-        // ==============================================
-        // 5. VISUALISASI GRAFIK
-        // ==============================================
-        const canvasMain = document.getElementById('mainChart');
-        if (canvasMain) {
-            const ctxMain = canvasMain.getContext('2d');
-            const grad = ctxMain.createLinearGradient(0,0,0,300);
-            grad.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            
-            new Chart(ctxMain, {
-                type: 'line',
-                data: {
-                    labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
-                    datasets: [{
-                        label: 'Render Aktivitas',
-                        data: [142, 280, 190, 450, 310, 580, 890],
-                        borderColor: '#ef4444',
-                        borderWidth: 3,
-                        pointRadius: 4,
-                        pointBackgroundColor: '#fff',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: grad
-                    }]
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, ticks: { color: '#6b7280' } }, 
-                        x: { grid: { display: false }, ticks: { color: '#6b7280' } } 
-                    } 
+            const handleMediaChange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (preview) URL.revokeObjectURL(preview);
+                    setRes("");
+                    
+                    if (file.type.startsWith('video/')) {
+                        setIsVideo(true);
+                        setPreview(null);
+                        try {
+                            const base64Frame = await extractFrameFromVideo(file);
+                            setPreview(`data:image/jpeg;base64,${base64Frame}`);
+                            setB64(base64Frame);
+                        } catch (err) {
+                            alert("Gagal mengambil frame dari video.");
+                        }
+                    } else {
+                        setIsVideo(false);
+                        setPreview(URL.createObjectURL(file));
+                        setB64(await compressImage(file));
+                    }
                 }
-            });
-        }
+            };
 
-        const canvasDoughnut = document.getElementById('doughnutChart');
-        if (canvasDoughnut) {
-            const ctxDoughnut = canvasDoughnut.getContext('2d');
-            new Chart(ctxDoughnut, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Studio', 'TikTok', 'Vision', 'Algo'],
-                    datasets: [{
-                        data: [55, 25, 15, 5],
-                        backgroundColor: ['#ef4444', '#991b1b', '#4a0404', '#1f2937'],
-                        borderWidth: 0,
-                        hoverOffset: 10
-                    }]
-                },
-                options: { 
-                    cutout: '75%', 
-                    plugins: { 
-                        legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 20, font: { size: 10 }, usePointStyle: true, pointStyle: 'circle' } } 
-                    } 
+            const handleAnalyze = async () => {
+                if(!b64) return;
+                setLoading(true); setRes("");
+                
+                setProgressPct(10);
+                const simInterval = setInterval(() => setProgressPct(p => p < 90 ? p + Math.floor(Math.random() * 8) : 90), 800);
+
+                try {
+                    const locationInstruction = targetLocation !== "Default" 
+                        ? `PENTING: Ubah latar belakang (background) dan lingkungan/environment subjek menjadi: ${targetLocation}. Pertahankan identitas subjek utama persis seperti gambar asli, tapi letakkan di lokasi baru ini secara natural.`
+                        : "Pertahankan latar belakang dan lingkungan persis seperti gambar asli (Akurasi 99.9%).";
+
+                    const systemPrompt = `Tugas: Analisis gambar yang diunggah SECARA SANGAT MENDALAM. Perhatikan seluruh komponen sekecil apapun (subjek, ekspresi, pakaian, properti, pencahayaan).
+Anda WAJIB meniru semua isinya lalu men-generate "Main Prompt" dan "Negative Prompt" yang jika digunakan pada AI Generator akan menghasilkan visual yang 99.9% sama persis dengan gambar yang diupload ini.
+
+Lingkungan/Background: ${locationInstruction}
+Wajib gunakan bahasa: ${language}.
+
+Format Balasan WAJIB persis seperti ini:
+[MAIN PROMPT]
+(tulis prompt sangat detail dan deskriptif dalam bahasa ${language})
+
+[NEGATIVE PROMPT]
+(tulis hal-hal yang dilarang/dihindari agar hasil realistis dan tidak cacat, dalam bahasa ${language})`;
+
+                    const result = await AI.generateText(systemPrompt, b64);
+                    
+                    clearInterval(simInterval);
+                    setProgressPct(100);
+                    setRes(result);
+                } catch (e) { 
+                    clearInterval(simInterval);
+                    setProgressPct(0);
+                    alert("Gagal: " + e.message); 
                 }
-            });
+                setLoading(false);
+                setTimeout(() => setProgressPct(0), 1500); 
+            };
+
+            return (
+                <div className="space-y-10 animate-in fade-in">
+                    <h2 className="text-4xl font-black text-white uppercase flex items-center tracking-tighter"><i className="ph-fill ph-magnifying-glass text-red-600 mr-4"></i>Prompt Finder</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div className="glass-panel p-8 space-y-6 relative">
+                            <div className="upload-placeholder h-80 border-dashed border-white/20 relative">
+                                {preview ? (
+                                    <>
+                                        <img src={preview} className="w-full h-full object-cover" />
+                                        {isVideo && (
+                                            <div className="absolute top-2 left-2 bg-red-600/90 px-3 py-1 rounded-lg text-white font-bold text-xs uppercase tracking-widest shadow-lg border border-white/40">
+                                                Video Frame
+                                            </div>
+                                        )}
+                                        <div className="delete-overlay" onClick={() => {setB64(""); setPreview(null); setIsVideo(false);}}><i className="ph-bold ph-trash mr-1"></i>Hapus</div>
+                                    </>
+                                ) : (
+                                    <label className="text-center group cursor-pointer w-full h-full flex flex-col items-center justify-center">
+                                        <i className="ph ph-camera text-4xl text-gray-700 group-hover:text-red-600 transition-colors"></i>
+                                        <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest">Upload Gambar / Video</p>
+                                        <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleMediaChange} className="hidden" />
+                                    </label>
+                                )}
+                            </div>
+                            
+                            <button onClick={handleAnalyze} disabled={loading} className="btn-red relative overflow-hidden">
+                                {loading && <div className="absolute left-0 top-0 h-full bg-red-900/80 transition-all duration-300" style={{ width: `${progressPct}%` }}></div>}
+                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                    {loading ? <i className="ph ph-spinner animate-spin text-xl"></i> : ""}
+                                    {loading ? `Menganalisis... ${progressPct}%` : "Bongkar Prompt"}
+                                </span>
+                            </button>
+                            
+                            <div className="w-full mt-1">
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Ganti Lokasi (Environment)</label>
+                                <select 
+                                    value={targetLocation} 
+                                    onChange={(e) => setTargetLocation(e.target.value)} 
+                                    className="w-full bg-black/50 border border-white/20 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-500 transition-all font-bold"
+                                >
+                                    <option value="Default">1. Gambar Default (Sesuai Asli)</option>
+                                    <option value="Hutan Belantara yang rimbun dan misterius">2. Hutan</option>
+                                    <option value="Jalanan Kota / Street yang estetik">3. Jalanan</option>
+                                    <option value="Tepi Laut / Pantai yang indah">4. Tepi Laut</option>
+                                    <option value="Di tengah Keramaian orang / kota sibuk">5. Di Keramaian</option>
+                                    <option value="Lokasi Acak (Pilih lokasi paling epik dan kreatif menurut AI)">6. Random Lokasi (AI)</option>
+                                </select>
+                            </div>
+                            
+                            <div className="flex gap-3 w-full mt-2">
+                                <button 
+                                    onClick={() => setLanguage("Indonesia")} 
+                                    className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all border ${language === 'Indonesia' ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-black/50 border-white/20 text-gray-500 hover:text-white'}`}
+                                >Indonesia</button>
+                                <button 
+                                    onClick={() => setLanguage("English")} 
+                                    className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-xl transition-all border ${language === 'English' ? 'bg-red-600 border-red-500 text-white shadow-lg' : 'bg-black/50 border-white/20 text-gray-500 hover:text-white'}`}
+                                >English</button>
+                            </div>
+                        </div>
+                        
+                        <div className="naskah-box min-h-[400px] flex flex-col justify-between">
+                            <div>
+                                <p className="text-[10px] font-black text-red-500 mb-6 uppercase tracking-widest">Master Prompt Output:</p>
+                                <p className="text-gray-300 text-sm font-mono leading-loose whitespace-pre-wrap">{res || "Bongkar prompt..."}</p>
+                            </div>
+                            {res && <button onClick={() => copyToClipboard(res).then(ok => ok && alert('Salin sukses'))} className="mt-8 text-[11px] font-black text-white hover:text-red-500 flex items-center gap-2 uppercase tracking-widest"><i className="ph ph-copy"></i> Salin Prompt</button>}
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
-        // ==============================================
-        // 6. INISIALISASI AKHIR
-        // ==============================================
-        calculateProfit();
-        setInterval(() => {
-            const clockEl = document.getElementById('clock');
-            if (clockEl) clockEl.innerText = new Date().toLocaleTimeString('id-ID', { hour12: false });
-        }, 1000);
-        
-        if (sessionStorage.getItem('virexa_admin') === 'true') {
-            fetchUsers();
-            // Auto-refresh data user setiap 10 detik
-            setInterval(fetchUsers, 10000);
+        function AlgoView() {
+            const [loading, setLoading] = useState(false);
+            const [preview, setPreview] = useState(null);
+            const [b64, setB64] = useState("");
+            const [scriptTitle, setScriptTitle] = useState("");
+            
+            const [generatedData, setGeneratedData] = useState(null); 
+
+            const [generatedAlgoImage, setGeneratedAlgoImage] = useState(null);
+            const [isGeneratingAlgoImage, setIsGeneratingAlgoImage] = useState(false);
+
+            const [naskahProgressPct, setNaskahProgressPct] = useState(0);
+            const [imageProgressPct, setImageProgressPct] = useState(0);
+
+            const handleImageChange = async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (preview) URL.revokeObjectURL(preview);
+                    setPreview(URL.createObjectURL(file));
+                    setGeneratedData(null);
+                    setGeneratedAlgoImage(null);
+                    try {
+                        setB64(await compressImage(file));
+                    } catch (err) {
+                        alert("Gagal memproses gambar");
+                    }
+                }
+            };
+
+            const handleGenerateAlgoImage = async () => {
+                if (!b64) return alert("Silakan unggah foto terlebih dahulu!");
+                setIsGeneratingAlgoImage(true);
+                
+                setImageProgressPct(15);
+                const imgInterval = setInterval(() => setImageProgressPct(p => p < 85 ? p + Math.floor(Math.random() * 8) : 85), 1000);
+
+                try {
+                    const studioBackgrounds = [
+                        "modern, aesthetic, professional TikTok creator studio with cool neon lighting",
+                        "cozy podcast studio setup with warm fairy lights and acoustic foam",
+                        "futuristic cyberpunk room with vibrant RGB LEDs and high-tech vibes",
+                        "minimalist bright room with large window natural lighting and clean background",
+                        "luxury executive loft with dark wood and warm golden hour lighting"
+                    ];
+                    const randomBg = studioBackgrounds[Math.floor(Math.random() * studioBackgrounds.length)];
+
+                    const prompt = `A hyper-realistic vertical 9:16 portrait of the EXACT same person from the reference image. The person is holding a physical TikTok logo placard/sign. They are standing or sitting in a ${randomBg}. High quality, 8k resolution, commercial photography.`;
+                    const url = await AI.editImage([b64], prompt, "9:16", null);
+                    
+                    clearInterval(imgInterval);
+                    setImageProgressPct(100);
+                    setGeneratedAlgoImage(url);
+                    alert("Gambar TikTok Studio berhasil dibuat!");
+                } catch (error) {
+                    clearInterval(imgInterval);
+                    setImageProgressPct(0);
+                    alert(error.message || "Gagal menghasilkan gambar studio");
+                } finally {
+                    setIsGeneratingAlgoImage(false);
+                    setTimeout(() => setImageProgressPct(0), 1500); 
+                }
+            };
+
+            const handleGen = async () => {
+                if(!b64) return alert("Upload foto!");
+                setLoading(true); setGeneratedData(null);
+                
+                setNaskahProgressPct(10);
+                const textInterval = setInterval(() => setNaskahProgressPct(p => p < 90 ? p + Math.floor(Math.random() * 10) : 90), 800);
+
+                try {
+                    const safeTitle = scriptTitle.trim() !== "" ? scriptTitle : "Sesuai dengan konteks di dalam foto";
+                    const currentYear = new Date().getFullYear();
+                    
+                    const systemPrompt = `Anda adalah ahli pembuat naskah TikTok.
+                    Judul/Tema Naskah: ${safeTitle}.
+                    Tugas Anda: Analisis foto secara detail dan buatkan "Prompt Algoritma Tiktok" berdasarkan naskah baku berikut.
+                    
+                    🎬 NASKAH VIDEO TIKTOK (EDUKASI ALGORITMA TIKTOK)
+                    Buatkan versi durasi 18 detik 3 scane konsisten Transi lanjutan video 1 ke 2 ke 3
+                    pragrap bahasa inggris dialog bahasa indonesia.
+                    Dibuat di AI GENERATOR. 
+                    
+                    Tambahkan di setiap prompt semua video:
+                    natural blinking
+                    skin texture realistic
+                    hand gesture natural
+                    subtle breathing movement
+                    real Indonesian environment
+                    smartphone camera realism
+                    
+                    🎵 Musik: fyf ⏱ Jam Posting : Fyp
+                    Durasi total 18 detik (3 scene x 6 detik), gaya natural seperti rekam story.
+                    Aman pedoman TikTok.
+                    Rasio :9:16Versi : vartikal tiktok
+                    Video terakhir Follow, Sukai, Komentar dan Bagikan?
+                    Tex Layar Besar Setiap video.
+                    JUDUL, KATA KUNCI SEO CAPTION SINGKAT
+                    TAGAR : #wawasancreatorinsight#creatotorsearchinsiphts dan 3 tagar yang relevan
+                    
+                    1️⃣ HOOK (3–7 detik) 2️⃣ SOLUSI (7–14 detik) 3️⃣ CTA / Engagement (14–21 detik) 
+                    Wajib Menyebut Merek Produk. Produk tidak berlebihan) 👉 Wajib Menyebut Merek Produk (tidak berlebihan)
+                    👉 Wajib Menyebut Merek Produk. Dialog, buatkan jangan terlalu formal buat yang biasa layaknya manusia.
+                    
+                    Referensi Dialog (Gunakan tahun ${currentYear} sesuai situasi berjalan):
+                    "Selamat, Anda terpilih. Algoritma TikTok Tahun ${currentYear} aktif sekarang. Kalau video ini muncul di kamu, segera lakukan lima tanda di pojok kanan. Ini cara TikTok baca minatmu. Lakukan sekarang, follow, sukai komentar, dan bagikan. Bantu algoritma kirim konten ini ke lebih banyak orang." 
+                    ATAU 
+                    "Selamat! Anda terpilih! Algoritma TikTok ${currentYear} aktif sekarang. Segera lakukan lima tanda di pojok kanan. Ini sinyal yang dibaca sistem. Lakukan sekarang! Follow, sukai komentar, dan bagikan. Jangan cuma nonton."
+                    
+                    Keluarkan hasil HANYA dalam format JSON valid tanpa format markdown atau teks lain. Struktur JSON:
+                    {
+                      "metadata": "JUDUL: ...\\nCAPTION: ...\\nTAGAR: ...",
+                      "scenes": [
+                        {
+                          "scene": 1,
+                          "visualPrompt": "Teks bahasa inggris untuk AI Image Generator mendeskripsikan model dan produk secara detail...",
+                          "dialog": "Teks bahasa indonesia..."
+                        },
+                        { "scene": 2, "visualPrompt": "...", "dialog": "..." },
+                        { "scene": 3, "visualPrompt": "...", "dialog": "..." }
+                      ]
+                    }`;
+
+                    const result = await AI.generateText(systemPrompt, b64);
+                    
+                    let parsedData;
+                    try {
+                        const cleanJson = result.replace(/\`\`\`json/gi, '').replace(/\`\`\`/g, '').trim();
+                        parsedData = JSON.parse(cleanJson);
+                    } catch (e) {
+                        throw new Error("Gagal mengurai format JSON dari AI. Coba klik Generate lagi.");
+                    }
+                    
+                    clearInterval(textInterval);
+                    setNaskahProgressPct(100);
+                    setGeneratedData(parsedData);
+                } catch (e) { 
+                    clearInterval(textInterval);
+                    setNaskahProgressPct(0);
+                    alert("Gagal: " + e.message); 
+                }
+                setLoading(false);
+                setTimeout(() => setNaskahProgressPct(0), 1500); 
+            };
+
+            return (
+                <div className="space-y-10 animate-in fade-in">
+                    <h2 className="text-4xl font-black text-white uppercase tracking-tighter flex items-center"><i className="ph-fill ph-wand text-red-600 mr-4"></i>Prompt Algoritma Tiktok</h2>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        <div className="glass-panel p-8 space-y-6 relative flex flex-col gap-4">
+                            <div className="upload-placeholder h-64 border-dashed border-white/20">
+                                {preview ? (
+                                    <>
+                                        <img src={preview} /><div className="delete-overlay" onClick={() => {setB64(""); setPreview(null); setGeneratedAlgoImage(null); setGeneratedData(null);}}><i className="ph-bold ph-trash mr-1"></i>Hapus</div>
+                                    </>
+                                ) : (
+                                    <label className="text-center group cursor-pointer w-full h-full flex flex-col items-center justify-center">
+                                        <i className="ph ph-camera text-4xl text-gray-700 group-hover:text-red-600 transition-colors"></i>
+                                        <p className="mt-4 text-[10px] font-black text-gray-600 uppercase tracking-widest">Upload Foto</p>
+                                        <input type="file" onChange={handleImageChange} className="hidden" accept="image/*" />
+                                    </label>
+                                )}
+                            </div>
+                            
+                            <div className="flex flex-col gap-2">
+                                {generatedAlgoImage && (
+                                    <div className="relative w-full h-64 rounded-xl overflow-hidden border border-white/20">
+                                        <img src={generatedAlgoImage} className="w-full h-full object-cover object-top" alt="TikTok Studio" />
+                                        <button onClick={() => downloadImageWithExactRatio(generatedAlgoImage, `tiktok-studio-${Date.now()}.png`, "9:16")} className="absolute bottom-2 right-2 bg-black/80 px-3 py-1.5 rounded-lg text-white border border-white/20 hover:bg-red-600 transition-colors text-xs font-bold shadow-lg">Unduh</button>
+                                        <button onClick={() => setGeneratedAlgoImage(null)} className="absolute top-2 right-2 bg-black/80 px-2 py-1.5 rounded-lg text-white border border-white/20 hover:bg-red-600 transition-colors text-xs font-bold shadow-lg flex items-center gap-1">
+                                            <i className="ph-bold ph-trash"></i> Hapus
+                                        </button>
+                                    </div>
+                                )}
+                                <button 
+                                    onClick={handleGenerateAlgoImage}
+                                    disabled={!b64 || isGeneratingAlgoImage}
+                                    className="w-full bg-[#110000] hover:bg-[#2a0404] border border-white/30 text-white font-bold py-3 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-inner relative overflow-hidden"
+                                >
+                                    {isGeneratingAlgoImage && <div className="absolute left-0 top-0 h-full bg-red-900/40 transition-all duration-300" style={{ width: `${imageProgressPct}%` }}></div>}
+                                    <span className="relative z-10 flex items-center justify-center gap-2 text-sm w-full text-center">
+                                        {isGeneratingAlgoImage ? <i className="ph ph-spinner animate-spin text-lg"></i> : <i className="ph-fill ph-image text-lg"></i>}
+                                        <span className="whitespace-nowrap">{isGeneratingAlgoImage ? `Merender Studio... ${imageProgressPct}%` : "Generate Gambar Studio TikTok"}</span>
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-white mb-2 drop-shadow-[0_0_5px_rgba(255,255,255,0.3)]">Judul Naskah (opsional)</label>
+                                <input 
+                                  type="text"
+                                  value={scriptTitle}
+                                  onChange={(e) => setScriptTitle(e.target.value)}
+                                  placeholder="Contoh: Algoritma Tiktok"
+                                  className="w-full bg-black/80 border border-white/30 rounded-xl p-4 text-white focus:outline-none focus:border-white focus:shadow-[0_0_15px_rgba(255,255,255,0.2)] transition-all"
+                                />
+                            </div>
+
+                            <button onClick={handleGen} disabled={loading} className="btn-red mt-auto relative overflow-hidden">
+                                {loading && <div className="absolute left-0 top-0 h-full bg-red-900/80 transition-all duration-300" style={{ width: `${naskahProgressPct}%` }}></div>}
+                                <span className="relative z-10 flex items-center justify-center gap-2">
+                                    {loading ? <i className="ph ph-spinner animate-spin text-xl"></i> : ""}
+                                    {loading ? `Menyusun... ${naskahProgressPct}%` : "Generate Naskah FYP"}
+                                </span>
+                            </button>
+                        </div>
+                        
+                        <div className="naskah-box min-h-[400px] flex flex-col justify-start">
+                            {!generatedData ? (
+                                <div className="h-full flex items-center justify-center text-sm text-gray-500 font-medium text-center">
+                                    Klik tombol untuk mendapatkan formula viral...
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {/* METADATA */}
+                                    <div className="bg-[#110000] border border-white/10 p-4 rounded-xl shadow-inner">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Metadata</span>
+                                            <button onClick={() => copyToClipboard(generatedData.metadata).then(ok => ok && alert('Metadata tersalin!'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                        </div>
+                                        <p className="whitespace-pre-wrap text-sm text-gray-300 font-mono leading-relaxed">{generatedData.metadata}</p>
+                                    </div>
+                                    
+                                    {/* SCENES */}
+                                    {generatedData.scenes && generatedData.scenes.map((s, idx) => (
+                                        <div key={idx} className="bg-black/50 border border-white/10 p-5 rounded-xl">
+                                            <h4 className="text-red-500 font-black text-xs uppercase tracking-widest mb-4 border-b border-white/10 pb-2">🎬 SCENE {s.scene}</h4>
+                                            
+                                            <div className="mb-4">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">Visual Prompt AI:</span>
+                                                    <button onClick={() => copyToClipboard(s.visualPrompt).then(ok => ok && alert('Visual Prompt tersalin!'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                                </div>
+                                                <p className="text-xs text-gray-300 font-mono bg-[#050000] p-3 rounded-lg border border-white/5">{s.visualPrompt}</p>
+                                            </div>
+                                            
+                                            <div>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] text-gray-400 font-bold uppercase">Dialog:</span>
+                                                    <button onClick={() => copyToClipboard(s.dialog).then(ok => ok && alert('Dialog tersalin!'))} className="text-gray-500 hover:text-white transition-colors"><i className="ph-bold ph-copy text-lg"></i></button>
+                                                </div>
+                                                <p className="text-sm text-white italic bg-[#1a0505] p-3 rounded-lg border border-red-900/30">"{s.dialog}"</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
         }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
 </body>
 </html>
