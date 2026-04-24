@@ -174,7 +174,7 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        const apiKey = ""; 
+        const apiKey = ""; // NEW FEATURE: JIKA VERCEL ERROR, ISI API KEY DISINI UNTUK BYPASS BACKEND
         
         const fetchWithRetry = async (url, options, retries = 2) => {
             const delays = [500, 1000]; 
@@ -206,41 +206,49 @@
         const AI = {
             generateText: async (prompt, base64Image = null, signal = null) => {
                 let parts = [{ text: prompt }];
-                if (base64Image) {
-                    parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
+                if (base64Image) parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
+
+                // NEW FEATURE: Smart Hybrid Routing (Bypass Vercel otomatis jika apiKey diisi)
+                if (apiKey && apiKey.length > 10) {
+                    const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts }] }), signal
+                    });
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                 }
-                const payload = { contents: [{ parts }] };
-                
-                // NEW FEATURE: Restorasi endpoint API Gemini (sebelumnya mengarah ke /api/generate yang salah)
-                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+
+                const data = await fetchWithRetry(`/api/generate`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: signal
+                    body: JSON.stringify({ action: 'text', prompt, base64Image }), signal
                 });
                 
-                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                if (data.error) throw new Error(data.error);
+                return data.text || "";
             },
 
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
                 const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
-                const imageParts = imagesArray.map(base64 => ({
-                    inlineData: { mimeType: "image/jpeg", data: base64 }
-                }));
-
-                const payload = {
-                    contents: [{ parts: [ { text: prompt }, ...imageParts ] }],
-                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } 
-                };
                 
-                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                // NEW FEATURE: Smart Hybrid Routing (Bypass Vercel otomatis jika apiKey diisi)
+                if (apiKey && apiKey.length > 10) {
+                    const imageParts = imagesArray.map(base64 => ({ inlineData: { mimeType: "image/jpeg", data: base64 } }));
+                    const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [ { text: prompt }, ...imageParts ] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }), signal 
+                    });
+                    const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                    if (!base64) throw new Error("AI gagal merender gambar.");
+                    return `data:image/jpeg;base64,${base64}`;
+                }
+
+                const data = await fetchWithRetry(`/api/generate`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: signal 
+                    body: JSON.stringify({ action: 'image', prompt, base64Images: imagesArray, ratio }), signal 
                 });
 
-                const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-                if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
-                return `data:image/jpeg;base64,${base64}`;
+                if (data.error) throw new Error(data.error);
+                if (!data.imageUrl) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
+                return data.imageUrl;
             }
         };
 
