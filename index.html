@@ -210,25 +210,15 @@
                     parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
                 }
                 const payload = { contents: [{ parts }] };
-                const data = await fetchWithRetry(`/api/generate`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    prompt: prompt,
-    image: base64Image
-  }),
-  signal: signal
-});
-
-if (!data || typeof data !== "object") {
-  throw new Error("Respon server tidak valid");
-}
-
-if (!data.text) {
-  throw new Error("AI tidak mengembalikan teks");
-}
-
-return data.text;
+                
+                // NEW FEATURE: Restorasi endpoint API Gemini (sebelumnya mengarah ke /api/generate yang salah)
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: signal
+                });
+                
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
             },
 
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
@@ -743,6 +733,7 @@ return data.text;
                     
                     const scriptInstruction = customScript.trim() ? `\nInstruksi Gaya Naskah:\n${customScript}` : "";
                     
+                    // NEW FEATURE: Menambahkan pencegahan strict newline/karakter agar AI merespon 100% aman
                     const promptText = `[LANGKAH 1: ANALISIS GAMBAR MENDALAM]
 Perhatikan gambar dengan sangat teliti. Identifikasi dan ingat: bentuk, warna, komponen produk, fitur/kegunaan yang terlihat, serta jika ada model (gender, pakaian, ekspresi, lingkungan).
 
@@ -751,11 +742,11 @@ Padukan secara sempurna hasil analisis gambar di Langkah 1 dengan kerangka instr
 Merek/Nama Produk: ${brand || "Produk dalam gambar (Sebutkan berdasarkan analisis visual)"}
 ${scriptInstruction || "Buatkan naskah TikTok 3 scene viral (Hook, Value, CTA)."}
 
-WAJIB: Pose model atau sudut pandang produk HARUS BERBEDA secara dinamis dan estetis di setiap scene (contoh: Scene 1 close-up muka, Scene 2 interaksi produk/full body, Scene 3 angle kreatif).
+WAJIB: Pose model atau sudut pandang produk HARUS BERBEDA secara dinamis dan estetis di setiap scene.
 
 [OUTPUT WAJIB: JSON MURNI]
-Keluarkan HANYA format JSON valid tanpa markdown/teks tambahan. 
-Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{"visual":"bahasa inggris detail. STRICTLY ONLY ONE HUMAN MODEL IN THE FRAME. Wajib masukkan instruksi pose yang BERBEDA dari scene lainnya","dialog":"bahasa indonesia natural","paragraf":"Paragraf deskriptif rinci dalam Bahasa Inggris menceritakan aksi di scene ini untuk di-copy ke AI Video Generator luar"}]}`;
+Keluarkan HANYA format JSON valid. JANGAN MENGGUNAKAN ENTER / NEWLINE / PARAGRAF BARU DI DALAM NILAI TEKS (Semuanya harus dalam 1 baris string jika panjang).
+Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{"visual":"bahasa inggris detail. STRICTLY ONLY ONE HUMAN MODEL IN THE FRAME","dialog":"bahasa indonesia natural","paragraf":"Paragraf deskriptif rinci dalam Bahasa Inggris"}]}`;
                     
                     const res = await AI.generateText(promptText, b64, signal); 
                     
@@ -765,9 +756,19 @@ Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{
                         const startIndex = cleanJson.indexOf('{');
                         const endIndex = cleanJson.lastIndexOf('}');
                         if (startIndex === -1 || endIndex === -1) throw new Error("JSON tidak ditemukan");
-                        parsed = JSON.parse(cleanJson.substring(startIndex, endIndex + 1));
+                        
+                        // NEW FEATURE: Membuang semua karakter control / unescaped newline yang sering membuat JSON parse error 
+                        let safeJsonString = cleanJson.substring(startIndex, endIndex + 1)
+                                                      .replace(/[\u0000-\u001F]+/g, ' ') 
+                                                      .replace(/,\s*([\]}])/g, '$1'); 
+
+                        parsed = JSON.parse(safeJsonString);
+                        
+                        // NEW FEATURE: Fallback proteksi data jika scene tidak tersedia
+                        if(!parsed.scenes) parsed.scenes = []; 
                     } catch (err) {
-                        throw new Error("Gagal mengurai respons struktur naskah AI. Silakan klik Generate lagi.");
+                        console.error(res);
+                        throw new Error("AI memberikan format teks yang berantakan. Silakan klik Generate lagi.");
                     }
 
                     setProgressPct(40); 
@@ -781,7 +782,15 @@ Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{
                         setMsg(`Merender Scene ${i+1}...`);
                         setProgressPct(40 + Math.round(((i + 1) / parsed.scenes.length) * 60)); 
                         
-                        const imgRes = await AI.editImage([b64], `[RATIO 9:16] ${parsed.scenes[i].visual}. CRITICAL MANDATE: ONLY ONE PERSON/MODEL ALLOWED. NO DUPLICATE CLONES.`, "9:16", signal); 
+                        // NEW FEATURE: Sudut pandang kamera dinamis tiap scene & cegah keranjang/menunjuk di Scene 3
+                        const angleRules = [
+                            "Camera angle: Close-up portrait, eye-level.",
+                            "Camera angle: Medium shot, dynamic slight low-angle.",
+                            "Camera angle: Wide cinematic shot. STRICT RULE: NO yellow basket, NO pointing fingers down, keep pose completely relaxed and natural."
+                        ];
+                        const dynamicAngle = angleRules[i] || "";
+                        
+                        const imgRes = await AI.editImage([b64], `[RATIO 9:16] ${parsed.scenes[i].visual}. ${dynamicAngle} CRITICAL MANDATE: ONLY ONE PERSON ALLOWED. NO DUPLICATE CLONES.`, "9:16", signal); 
                         scenesWithImages.scenes[i].url = imgRes;
                         setData({ ...scenesWithImages });
                     }
