@@ -4,8 +4,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Mengambil API key dari Environment Variables Vercel
-  const apiKey = process.env.GEMINI_API_KEY;
+  // NEW FEATURE: Mengambil API key dan membersihkan spasi/karakter tersembunyi
+  const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(500).json({ error: 'API key is missing in Vercel Environment Variables' });
   }
@@ -61,6 +61,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Action parameter (text/image) is required' });
     
   } catch (error) {
+    // NEW FEATURE: Log di Vercel Dashboard untuk memudahkan debug masalah API
+    console.error("Vercel Backend Error:", error.message);
     return res.status(500).json({ error: error.message });
   }
 }
