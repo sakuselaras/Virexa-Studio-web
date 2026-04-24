@@ -31,13 +31,10 @@ export default async function handler(req, res) {
 
     const data = await response.json();
 
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "AI tidak mengembalikan teks";
+console.log("FULL RESPONSE:", JSON.stringify(data, null, 2));
 
-    return res.status(200).json({ text });
+const text =
+  data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+  "AI tidak mengembalikan teks";
 
-  } catch (error) {
-    return res.status(500).json({ text: "Server error" });
-  }
-}
+return res.status(200).json({ text });
