@@ -1,40 +1,66 @@
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ text: "Method not allowed" });
+  // Pastikan hanya menerima method POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Mengambil API key dari Environment Variables Vercel
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey) {
-    return res.status(500).json({ text: "API key tidak ditemukan" });
+    return res.status(500).json({ error: 'API key is missing in Vercel Environment Variables' });
   }
+
+  const { action, prompt, base64Image, base64Images, ratio } = req.body;
 
   try {
-    const { prompt } = req.body;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
-        })
+    // Handling endpoint text generator
+    if (action === 'text') {
+      let parts = [{ text: prompt }];
+      
+      // Jika ada gambar sisipkan ke dalam payload
+      if (base64Image) {
+        parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
       }
-    );
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts }] })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'Terjadi kesalahan pada server AI Gemini');
+      
+      return res.status(200).json({ text: data.candidates?.[0]?.content?.parts?.[0]?.text || "" });
+    } 
+    
+    // Handling endpoint image editor
+    if (action === 'image') {
+      const imageParts = base64Images.map(b64 => ({
+        inlineData: { mimeType: "image/jpeg", data: b64 }
+      }));
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contents: [{ parts: [ { text: prompt }, ...imageParts ] }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } 
+        })
+      });
+      
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || 'Terjadi kesalahan render pada server AI Gemini');
+      
+      const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+      if (!base64) throw new Error("AI gagal merender gambar, tidak ada respons base64");
+      
+      return res.status(200).json({ imageUrl: `data:image/jpeg;base64,${base64}` });
+    }
 
-    const data = await response.json();
-
-console.log("FULL RESPONSE:", JSON.stringify(data, null, 2));
-
-const text =
-  data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-  "AI tidak mengembalikan teks";
-
-return res.status(200).json({ text });
+    return res.status(400).json({ error: 'Action parameter (text/image) is required' });
+    
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
