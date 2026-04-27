@@ -219,13 +219,15 @@
                 const payload = { contents: [{ parts }] };
                 
                 // NEW FEATURE: Normalisasi API langsung ke sistem (menghapus proxy vercel) agar 100% berfungsi
-                const data = await fetch('/api/gemini', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: signal
+                const response = await fetch('/api/gemini', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: signal
                 });
+
+                const data = await response.json();
                 return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            },
+                },
 
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
                 const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
