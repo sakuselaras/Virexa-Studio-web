@@ -12,6 +12,11 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
+        /* NEW FEATURE: Import dan class untuk font jenis Display */
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+        .font-display { font-family: 'Playfair Display', serif !important; }
+        * { font-family: 'Playfair Display', serif !important; } /* NEW FEATURE: Menerapkan font Display ke SEMUA huruf dan angka di seluruh web */
+
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #050000; }
         ::-webkit-scrollbar-thumb { background: #4a0404; border-radius: 10px; }
@@ -176,8 +181,9 @@
 
         const apiKey = ""; // NEW FEATURE: JIKA VERCEL ERROR, ISI API KEY DISINI UNTUK BYPASS BACKEND
         
-        const fetchWithRetry = async (url, options, retries = 2) => {
-            const delays = [500, 1000]; 
+        // NEW FEATURE: Perbaikan delay dan retries agar API AI tidak mendeteksi spam/rate limit di klik pertama
+        const fetchWithRetry = async (url, options, retries = 3) => {
+            const delays = [2000, 4000, 8000]; 
             for (let i = 0; i <= retries; i++) {
                 try {
                     if (options.signal && options.signal.aborted) throw new Error("Proses dihentikan pengguna");
@@ -192,7 +198,8 @@
                         } catch(e){}
                         
                         const err = new Error(errMsg);
-                        if (response.status >= 400 && response.status < 500) err.isTerminal = true;
+                        // NEW FEATURE: Membaca error Rate Limit (429) agar tidak langsung gagal di percobaan pertama
+                        if (response.status >= 400 && response.status < 500 && response.status !== 429) err.isTerminal = true;
                         throw err;
                     }
                     return await response.json();
@@ -206,49 +213,41 @@
         const AI = {
             generateText: async (prompt, base64Image = null, signal = null) => {
                 let parts = [{ text: prompt }];
-                if (base64Image) parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
-
-                // NEW FEATURE: Smart Hybrid Routing (Bypass Vercel otomatis jika apiKey diisi)
-                if (apiKey && apiKey.length > 10) {
-                    const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts }] }), signal
-                    });
-                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                if (base64Image) {
+                    parts.push({ inlineData: { mimeType: "image/jpeg", data: base64Image } });
                 }
-
-                const data = await fetchWithRetry(`/api/generate`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'text', prompt, base64Image }), signal
-                });
+                const payload = { contents: [{ parts }] };
                 
-                if (data.error) throw new Error(data.error);
-                return data.text || "";
+                // NEW FEATURE: Normalisasi API langsung ke sistem (menghapus proxy vercel) agar 100% berfungsi
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: signal
+                });
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
             },
 
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
                 const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
-                
-                // NEW FEATURE: Smart Hybrid Routing (Bypass Vercel otomatis jika apiKey diisi)
-                if (apiKey && apiKey.length > 10) {
-                    const imageParts = imagesArray.map(base64 => ({ inlineData: { mimeType: "image/jpeg", data: base64 } }));
-                    const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [ { text: prompt }, ...imageParts ] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }), signal 
-                    });
-                    const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-                    if (!base64) throw new Error("AI gagal merender gambar.");
-                    return `data:image/jpeg;base64,${base64}`;
-                }
+                const imageParts = imagesArray.map(base64 => ({
+                    inlineData: { mimeType: "image/jpeg", data: base64 }
+                }));
 
-                const data = await fetchWithRetry(`/api/generate`, {
+                const payload = {
+                    contents: [{ parts: [ { text: prompt }, ...imageParts ] }],
+                    generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } 
+                };
+                
+                // NEW FEATURE: Normalisasi fungsi render gambar langsung ke endpoint asli
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'image', prompt, base64Images: imagesArray, ratio }), signal 
+                    body: JSON.stringify(payload),
+                    signal: signal 
                 });
 
-                if (data.error) throw new Error(data.error);
-                if (!data.imageUrl) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
-                return data.imageUrl;
+                const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
+                return `data:image/jpeg;base64,${base64}`;
             }
         };
 
@@ -272,6 +271,7 @@
             };
         });
 
+        // Ekstraksi frame otomatis dari file video (MP4/WebM)
         const extractFrameFromVideo = (file) => {
             return new Promise((resolve, reject) => {
                 const video = document.createElement('video');
@@ -388,6 +388,11 @@
                             .android-mode .nav-item { flex-direction: column; padding: 10px 0; border: none !important; background: transparent !important; gap: 6px; }
                             .android-mode .nav-item i { font-size: 24px; }
                             .android-mode .nav-item span { font-size: 9px; display: block; }
+                            
+                            /* NEW FEATURE: Menyusun teks navigasi (Prompt di atas, Algoritma di bawah) dan memastikan ruang ikon tampil sempurna */
+                            .android-mode .nav-item { flex: 1; min-width: 0; align-items: center; }
+                            .android-mode .nav-item span { white-space: normal !important; text-align: center; max-width: 65px; line-height: 1.2; }
+                            
                             .android-mode .nav-item.active { color: #dc2626 !important; background: transparent !important; border-left: none !important; }
                             .android-mode .nav-item.active i { color: #dc2626; text-shadow: 0 0 10px rgba(220,38,38,0.5); }
                             .android-mode main { padding: 20px !important; padding-bottom: 100px !important; }
@@ -424,7 +429,8 @@
                     <div className={`flex h-screen overflow-hidden ${viewMode === 'android' ? 'android-mode' : 'w-full'}`}>
                         <aside className="sidebar flex flex-col h-full shrink-0">
                             <div className="p-8 mb-4">
-                                <h1 className="text-xl font-black italic tracking-tighter text-white uppercase flex items-center">
+                                {/* NEW FEATURE: Gunakan class font-display untuk logo */}
+                                <h1 className="font-display text-xl font-black italic tracking-tighter text-white uppercase flex items-center">
                                     <i className="ph-fill ph-sparkle text-red-600 mr-2 text-2xl"></i>VIREXA STUDIO
                                 </h1>
                             </div>
@@ -485,7 +491,8 @@
             return (
                 <div className="space-y-12 animate-in fade-in duration-500">
                     <header>
-                        <h2 className="text-5xl font-bold text-white leading-tight tracking-tight">Selamat datang di Virexa Studio.</h2>
+                        {/* NEW FEATURE: Gunakan class font-display untuk text ucapan selamat datang */}
+                        <h2 className="font-display text-5xl font-bold text-white leading-tight tracking-tight">Selamat datang di Virexa Studio.</h2>
                         <p className="text-gray-400 mt-2 text-xl font-medium">Platform Generatif Ultra Realistis.</p>
                     </header>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -549,6 +556,9 @@
             const [progressPct, setProgressPct] = useState(0); 
             const abortControllerRef = useRef(null);
 
+            // NEW FEATURE: State untuk fitur Edit Gambar Global (Satu instruksi untuk semua)
+            const [globalEditPrompt, setGlobalEditPrompt] = useState("");
+
             const handleFile = (e, type) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -581,9 +591,52 @@
                     setProgressPct(5); 
                     const b64Prod = await compressImage(prodFile);
                     const b64Model = await compressImage(modelFile);
+                    
+                    // NEW FEATURE: Menggabungkan 2 gambar (Produk & Model) menjadi 1 kanvas untuk mencegah crash API (AI hanya menerima 1 referensi)
+                    setProgressMsg("Menyiapkan Referensi Visual...");
+                    const combinedB64 = await new Promise((resolve) => {
+                        const i1 = new Image(); const i2 = new Image();
+                        i1.onload = () => {
+                            i2.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                // NEW FEATURE: Overlay Picture-in-Picture agar AI merender 1 subjek utuh (mencegah frame terbelah / dinding)
+                                canvas.width = i2.width; 
+                                canvas.height = i2.height;
+                                const ctx = canvas.getContext('2d');
+                                
+                                // Gambar model sebagai background utuh (Fokus Tengah)
+                                ctx.drawImage(i2, 0, 0, canvas.width, canvas.height);
+                                
+                                // Gambar produk sebagai inset referensi kecil di sudut atas
+                                const pipSize = Math.max(canvas.width, canvas.height) * 0.3; 
+                                const pAspect = i1.width / i1.height;
+                                let pW = pipSize; let pH = pipSize / pAspect;
+                                if (pH > pipSize) { pH = pipSize; pW = pipSize * pAspect; }
+                                
+                                ctx.fillStyle = "#ffffff";
+                                ctx.fillRect(0, 0, pW + 20, pH + 20);
+                                ctx.drawImage(i1, 10, 10, pW, pH);
+                                
+                                resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+                            };
+                            i2.src = 'data:image/jpeg;base64,' + b64Model;
+                        };
+                        i1.src = 'data:image/jpeg;base64,' + b64Prod;
+                    });
+
                     setProgressPct(10); 
 
-                    const poses = ["Walking forward dynamically", "Close up portrait face", "Holding product professionally", "Sitting elegantly in modern background", "Commercial studio lighting", "Macro detail on product", "Outdoor casual lifestyle", "Luxury fashion presentation"];
+                    // NEW FEATURE: Menghapus paksaan "holding/wearing" diganti dengan "interacting" agar menyesuaikan ukuran
+                    const poses = [
+                        "CRITICAL: ONLY the product displayed perfectly in the center. Ensure product name and size/specifications are clearly readable. NO HUMAN, NO MODEL.",
+                        "CRITICAL: Single model interacting with the product. Full body shot. The model's body and face are actively turned FACING LEFT. Perfectly centered.",
+                        "CRITICAL: Single model interacting with the product. Full body shot. The model's body and face are actively turned FACING RIGHT. Perfectly centered.",
+                        "CRITICAL: Single model interacting with the product. Full body shot. The camera is positioned straight in FRONT of the model. Perfectly centered.",
+                        "CRITICAL: Single model interacting with the product. Full body shot. The model is SITTING DOWN (on a chair, sofa, or floor). The camera is positioned straight in FRONT. Perfectly centered.",
+                        "CRITICAL: Single model interacting with the product. Half body shot (waist up). The camera is positioned BEHIND the model, showing the model's back. Perfectly centered.",
+                        "CRITICAL: Single model interacting with the product. Half body shot (waist up) zoomed in. The camera is positioned on the RIGHT side of the model. Perfectly centered.",
+                        "CRITICAL: Single model presenting the product. Half body shot (waist up). The model is actively pointing at and presenting the product towards the camera. Perfectly centered."
+                    ];
                     
                     for (let i = 0; i < poses.length; i++) {
                         if (signal.aborted) throw new Error("Proses dihentikan pengguna"); 
@@ -593,9 +646,18 @@
                         
                         const branding = storeName ? ` . MANDATORY: Include a glowing aesthetic neon sign that clearly spells '${storeName.toUpperCase()}' in the background.` : '';
                         
-                        const strictPrompt = `[CRITICAL MANDATE: EXACT ${ratio} PORTRAIT]. High-end commercial photography. Combine Product from Reference 1 and Model from Reference 2. Pose: ${poses[i]}. EXTREMELY STRICT RULE: DO NOT alter the model's identity, race, facial features, or specific clothing style (e.g., if wearing hijab in reference 2, MUST wear hijab in output). Keep the face exactly identical to Reference 2.${branding}`;
+                        const customDesc = prompt ? ` ADDITIONAL INSTRUCTION: ${prompt}.` : '';
                         
-                        const res = await AI.editImage([b64Prod, b64Model], strictPrompt, ratio, signal); 
+                        const editDesc = globalEditPrompt ? ` CRITICAL REVISION INSTRUCTION (APPLY TO ALL POSES EQUALLY): ${globalEditPrompt}. EXTREMELY STRICT RULE: The exact color, style, and texture of the clothing MUST remain strictly consistent across all outputs without any variation.` : '';
+                        
+                        const modelRule = i === 0 ? "DO NOT INCLUDE ANY HUMAN OR MODEL." : "EXTREMELY STRICT RULE: DO NOT alter the model's identity, race, facial features, or specific clothing style.";
+                        
+                        // NEW FEATURE: Menanamkan logika analisa ukuran ke AI agar hasil interaksi 100% masuk akal secara fisik (fisika nyata)
+                        const sizeLogic = "CRITICAL SIZE LOGIC: AI MUST analyze the product's real-world size. If it is small/light (bag, food, shoes), the model can hold or wear it. If it is HUGE/HEAVY (tractor, car, heavy machinery), the model MUST NOT lift it, but instead stand/sit naturally next to it or point at it. MUST BE 100% PHYSICALLY REALISTIC.";
+                        
+                        const strictPrompt = `[CRITICAL MANDATE: EXACT ${ratio} PORTRAIT]. STYLE: ${style}. High-end commercial photography. The input image is a unified scene with a product reference in the corner. YOU MUST GENERATE ONE SINGLE COHESIVE SCENE. CRITICAL RULE: THE MAIN SUBJECT MUST BE DEAD CENTER OF THE IMAGE. DO NOT render empty walls or split screens. NO DUPLICATE PEOPLE. Pose/Action: ${poses[i]}. ${modelRule} ${branding} ${customDesc} ${editDesc} ${sizeLogic}`;
+                        
+                        const res = await AI.editImage([combinedB64], strictPrompt, ratio, signal); 
                         setResults(prev => [...prev, res]);
                     }
                     setProgressPct(100); 
@@ -667,6 +729,15 @@
                                     <div><label className="text-[10px] font-black text-gray-600 block mb-3 uppercase tracking-widest">Aspect Ratio</label><div className="flex gap-2">{['1:1', '16:9', '9:16'].map(r => <button key={r} onClick={() => setRatio(r)} className={`toggle-btn flex-1 py-3 ${ratio === r ? 'active' : ''}`}>{r}</button>)}</div></div>
                                 </div>
                                 
+                                {/* NEW FEATURE: Form Edit Global untuk merubah seluruh gambar saat di-generate ulang */}
+                                {results.length > 0 && (
+                                    <div className="mt-4 p-4 border border-red-900/50 bg-red-900/10 rounded-xl animate-in fade-in">
+                                        <label className="block text-[11px] font-black text-white uppercase tracking-widest mb-2"><i className="ph-bold ph-pencil-simple mr-2"></i>Instruksi Edit Semua Gambar</label>
+                                        <p className="text-[9px] text-gray-400 mb-3 font-bold uppercase tracking-widest">Isi revisi di bawah lalu klik Generate lagi.</p>
+                                        <textarea value={globalEditPrompt} onChange={(e) => setGlobalEditPrompt(e.target.value)} className="input-area h-20 text-sm" placeholder="Contoh: Ganti baju menjadi jaket kulit hitam, posisikan subjek agak ke tengah..."></textarea>
+                                    </div>
+                                )}
+
                                 <div className="flex gap-4 items-end mt-4">
                                     <button onClick={handleGen} disabled={loading} className="btn-red py-5 font-black text-lg shadow-[0_0_20px_rgba(220,38,38,0.2)] relative overflow-hidden flex-1">
                                         {loading && <div className="absolute left-0 top-0 h-full bg-red-900/80 transition-all duration-300" style={{ width: `${progressPct}%` }}></div>}
@@ -691,12 +762,14 @@
                     {results.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6 pt-10">
                             {results.map((img, i) => (
-                                <div key={i} className="glass-panel overflow-hidden border-white/10 group shadow-2xl relative">
-                                    <img src={img} className="w-full aspect-[9/16] object-cover transition-transform duration-500 group-hover:scale-105" />
-                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                <div key={i} className="glass-panel overflow-hidden border-white/10 group shadow-2xl relative flex justify-center items-center bg-[#050000]">
+                                    {/* NEW FEATURE: Menambahkan flex justify-center items-center agar konten pembungkus ada di tengah */}
+                                    {/* NEW FEATURE: Menambahkan object-center dan h-full agar posisi subjek gambar difokuskan presisi ke tengah */}
+                                    <img src={img} className="w-full h-full aspect-[9/16] object-cover object-center transition-transform duration-500 group-hover:scale-105" />
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all gap-3">
                                         <button onClick={() => downloadImageWithExactRatio(img, `virexa-${i+1}.jpg`, ratio)} className="bg-red-600 p-4 rounded-full text-white shadow-xl hover:scale-110 transition-transform"><i className="ph-bold ph-download-simple text-2xl"></i></button>
                                     </div>
-                                    <div className="p-3 bg-black flex justify-between px-4 border-t border-white/5 uppercase"><span className="text-[9px] font-black text-gray-500">Pose {i+1}</span><span className="text-[9px] font-black text-red-500">PRO HQ</span></div>
+                                    <div className="p-3 bg-black flex justify-between px-4 border-t border-white/5 uppercase absolute bottom-0 w-full"><span className="text-[9px] font-black text-gray-500">Pose {i+1}</span><span className="text-[9px] font-black text-red-500">PRO HQ</span></div>
                                 </div>
                             ))}
                         </div>
@@ -756,27 +829,28 @@ WAJIB: Pose model atau sudut pandang produk HARUS BERBEDA secara dinamis dan est
 Keluarkan HANYA format JSON valid. JANGAN MENGGUNAKAN ENTER / NEWLINE / PARAGRAF BARU DI DALAM NILAI TEKS (Semuanya harus dalam 1 baris string jika panjang).
 Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{"visual":"bahasa inggris detail. STRICTLY ONLY ONE HUMAN MODEL IN THE FRAME","dialog":"bahasa indonesia natural","paragraf":"Paragraf deskriptif rinci dalam Bahasa Inggris"}]}`;
                     
-                    const res = await AI.generateText(promptText, b64, signal); 
-                    
+                    // NEW FEATURE: Looping internal agar AI tidak gagal di klik pertama (memaksa AI menghasilkan naskah dan format gambar yang valid)
                     let parsed;
-                    try {
-                        const cleanJson = res.replace(/```json/gi, '').replace(/```/g, '').trim();
-                        const startIndex = cleanJson.indexOf('{');
-                        const endIndex = cleanJson.lastIndexOf('}');
-                        if (startIndex === -1 || endIndex === -1) throw new Error("JSON tidak ditemukan");
-                        
-                        // NEW FEATURE: Membuang semua karakter control / unescaped newline yang sering membuat JSON parse error 
-                        let safeJsonString = cleanJson.substring(startIndex, endIndex + 1)
-                                                      .replace(/[\u0000-\u001F]+/g, ' ') 
-                                                      .replace(/,\s*([\]}])/g, '$1'); 
+                    let retryCount = 0;
+                    while (retryCount < 3) {
+                        try {
+                            const res = await AI.generateText(promptText, b64, signal); 
+                            const cleanJson = res.replace(/```json/gi, '').replace(/```/g, '').trim();
+                            const startIndex = cleanJson.indexOf('{');
+                            const endIndex = cleanJson.lastIndexOf('}');
+                            if (startIndex === -1 || endIndex === -1) throw new Error("JSON tidak ditemukan");
+                            
+                            let safeJsonString = cleanJson.substring(startIndex, endIndex + 1)
+                                                          .replace(/[\u0000-\u001F]+/g, ' ') 
+                                                          .replace(/,\s*([\]}])/g, '$1'); 
 
-                        parsed = JSON.parse(safeJsonString);
-                        
-                        // NEW FEATURE: Fallback proteksi data jika scene tidak tersedia
-                        if(!parsed.scenes) parsed.scenes = []; 
-                    } catch (err) {
-                        console.error(res);
-                        throw new Error("AI memberikan format teks yang berantakan. Silakan klik Generate lagi.");
+                            parsed = JSON.parse(safeJsonString);
+                            if (parsed.scenes && parsed.scenes.length > 0) break; 
+                            throw new Error("Scene Kosong");
+                        } catch (err) {
+                            retryCount++;
+                            if (retryCount >= 3) throw new Error("AI gagal memberikan format yang benar. Silakan klik Generate lagi.");
+                        }
                     }
 
                     setProgressPct(40); 
@@ -784,13 +858,15 @@ Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{
                     let scenesWithImages = { ...parsed, scenes: parsed.scenes.map(s => ({ ...s, url: null })) };
                     setData(scenesWithImages);
 
+                    // NEW FEATURE: Jeda aman 2 detik agar API Google tidak menolak proses render gambar pada percobaan pertama
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
                     for (let i = 0; i < parsed.scenes.length; i++) {
                         if (signal.aborted) throw new Error("Proses dihentikan pengguna"); 
                         
                         setMsg(`Merender Scene ${i+1}...`);
                         setProgressPct(40 + Math.round(((i + 1) / parsed.scenes.length) * 60)); 
                         
-                        // NEW FEATURE: Sudut pandang kamera dinamis tiap scene & cegah keranjang/menunjuk di Scene 3
                         const angleRules = [
                             "Camera angle: Close-up portrait, eye-level.",
                             "Camera angle: Medium shot, dynamic slight low-angle.",
@@ -798,7 +874,10 @@ Format: {"judul":"...","keyword":"...","caption":"...","tagar":"...","scenes":[{
                         ];
                         const dynamicAngle = angleRules[i] || "";
                         
-                        const imgRes = await AI.editImage([b64], `[RATIO 9:16] ${parsed.scenes[i].visual}. ${dynamicAngle} CRITICAL MANDATE: ONLY ONE PERSON ALLOWED. NO DUPLICATE CLONES.`, "9:16", signal); 
+                        // NEW FEATURE: Prompt gambar diperkuat agar tidak ditolak oleh filter AI pada klik pertama
+                        const strictPrompt = `[CRITICAL MANDATE: EXACT 9:16 PORTRAIT]. High-end commercial photography. ${parsed.scenes[i].visual}. ${dynamicAngle} CRITICAL RULE: THE MAIN SUBJECT MUST BE DEAD CENTER. NO DUPLICATE PEOPLE. DO NOT render empty walls.`;
+                        
+                        const imgRes = await AI.editImage([b64], strictPrompt, "9:16", signal); 
                         scenesWithImages.scenes[i].url = imgRes;
                         setData({ ...scenesWithImages });
                     }
