@@ -7,11 +7,18 @@ export default async function handler(req, res) {
     if (!apiKey) return res.status(500).json({ error: 'Server Error: GEMINI_API_KEY belum diatur di Vercel' });
 
     // Mengambil target model dari parameter URL (dikirim dari frontend)
-    const { model } = req.query;
+    let { model } = req.query;
 
-    // NEW FEATURE: Otomatis menggunakan v1alpha untuk model eksperimental (image) agar tidak error 'not found'
-    const apiVersion = model.includes('image-preview') ? 'v1alpha' : 'v1beta';
-    const targetUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
+    // NEW FEATURE: Bypass model internal yang ditolak API Publik (Vercel)
+    // Fallback teks ke gemini-1.5-flash, dan stop request gambar dengan pesan peringatan jelas agar web tidak crash.
+    if (model.includes('image-preview')) {
+        return res.status(400).json({ 
+            error: { message: "Fitur render gambar ditolak: API Key publik Anda belum memiliki izin untuk model eksklusif ini." }
+        });
+    }
+    if (model.includes('gemini-2.5')) model = 'gemini-1.5-flash'; 
+
+    const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     try {
         const response = await fetch(targetUrl, {
