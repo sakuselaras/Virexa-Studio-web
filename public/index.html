@@ -219,17 +219,23 @@
                 const payload = { contents: [{ parts }] };
                 
                 // NEW FEATURE: Normalisasi API langsung ke sistem (menghapus proxy vercel) agar 100% berfungsi
-                const res = await fetch('/api/generate', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    prompt: prompt
-  })
-});
-                return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            },
+                async function generate() {
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "halo" })
+    });
+
+    const data = await response.json(); // 🔥 INI WAJIB ADA
+
+    console.log(data);
+    return data;
+
+  } catch (error) {
+    console.error("Gagal:", error);
+  }
+}
 
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
                 const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
@@ -243,15 +249,23 @@
                 };
                 
                 // NEW FEATURE: Normalisasi fungsi render gambar langsung ke endpoint asli
-                const res = await fetch('/api/generate', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    prompt: prompt
-  })
-});
+                async function generate() {
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "halo" })
+    });
+
+    const data = await response.json(); // 🔥 INI WAJIB ADA
+
+    console.log(data);
+    return data;
+
+  } catch (error) {
+    console.error("Gagal:", error);
+  }
+}
 
                 const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
                 if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
