@@ -8,7 +8,10 @@ export default async function handler(req, res) {
 
     // Mengambil target model dari parameter URL (dikirim dari frontend)
     const { model } = req.query;
-    const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    // NEW FEATURE: Otomatis menggunakan v1alpha untuk model eksperimental (image) agar tidak error 'not found'
+    const apiVersion = model.includes('image-preview') ? 'v1alpha' : 'v1beta';
+    const targetUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
 
     try {
         const response = await fetch(targetUrl, {
