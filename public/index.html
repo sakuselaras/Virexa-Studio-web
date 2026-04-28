@@ -219,24 +219,16 @@
                 const payload = { contents: [{ parts }] };
                 
                 // NEW FEATURE: Normalisasi API langsung ke sistem (menghapus proxy vercel) agar 100% berfungsi
-                async function generate() {
-  try {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "halo" })
-    });
+                const res = await fetch("/api/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt })
+});
 
-    const data = await response.json(); // 🔥 INI WAJIB ADA
+const data = await res.json(); // 🔥 INI WAJIB
 
-    console.log(data);
-    return data;
-
-  } catch (error) {
-    console.error("Gagal:", error);
-  }
-}
-
+console.log(data.text);
+console.log(data.image);
             editImage: async (base64Images, prompt, ratio = "1:1", signal = null) => {
                 const imagesArray = Array.isArray(base64Images) ? base64Images : [base64Images];
                 const imageParts = imagesArray.map(base64 => ({
@@ -249,24 +241,16 @@
                 };
                 
                 // NEW FEATURE: Normalisasi fungsi render gambar langsung ke endpoint asli
-                async function generate() {
-  try {
-    const response = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "halo" })
-    });
+                const res = await fetch("/api/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ prompt })
+});
 
-    const data = await response.json(); // 🔥 INI WAJIB ADA
+const data = await res.json(); // 🔥 INI WAJIB
 
-    console.log(data);
-    return data;
-
-  } catch (error) {
-    console.error("Gagal:", error);
-  }
-}
-
+console.log(data.text);
+console.log(data.image);
                 const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
                 if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
                 return `data:image/jpeg;base64,${base64}`;
