@@ -219,11 +219,15 @@
                 const payload = { contents: [{ parts }] };
                 
                 // NEW FEATURE: Normalisasi API langsung ke sistem (menghapus proxy vercel) agar 100% berfungsi
-                const data = await fetch('/api/generate', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: signal
-                });
+                const res = await fetch('/api/generate', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: prompt
+  })
+});
                 return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
             },
 
@@ -239,11 +243,15 @@
                 };
                 
                 // NEW FEATURE: Normalisasi fungsi render gambar langsung ke endpoint asli
-                const data = await fetch('/api/generate', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: signal 
-                });
+                const res = await fetch('/api/generate', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: prompt
+  })
+});
 
                 const base64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
                 if (!base64) throw new Error("AI gagal merender gambar, coba gunakan prompt/gambar lain.");
